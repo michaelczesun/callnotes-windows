@@ -101,8 +101,10 @@ app, for scripting or a Scheduled-Task-based setup.
 
 ## What v1 can do — and what's (still) missing
 
-**Works today (code-complete, CI-verified to compile and marshal COM correctly on
-`windows-latest`):**
+**Works today — first field test passed on real Windows (11 ARM64 24H2, 2026-07-03):
+`calltap procs` runs clean, and two-track capture is proven — a 440 Hz test tone
+recorded via process loopback at −0.1 dBFS peak, microphone captured in parallel.
+Native ARM64 build works. Still experimental — more machines, more reports, please:**
 
 - Per-app system-audio capture via WASAPI process loopback (include/exclude the
   target process's child-process tree)
@@ -135,10 +137,11 @@ app, for scripting or a Scheduled-Task-based setup.
   installer, same "clone and install" philosophy as the Mac app's `install.sh`.
 - **win-x64 only** for now — `net8.0-windows` and NAudio both support
   `win-arm64`, but there's no ARM64 Windows test coverage yet.
-- **No local Windows dev machine for this project** — every audio-stack claim
-  here is verified by `windows-latest` GitHub Actions CI, not by hand. That's
-  exactly why it's marked experimental and why real-machine test reports in the
-  issues are the most useful thing you can contribute right now.
+- **Tested in a VM so far, not on bare metal.** The field test above ran in a
+  Windows 11 ARM64 VM (UTM/QEMU on Apple Silicon): build, `procs`, `setup` and a
+  real loopback recording all pass there. Bare-metal machines, x64 hardware and
+  real VoIP calls are exactly what's untested — reports in the issues are the
+  most useful thing you can contribute right now.
 
 ## Install
 

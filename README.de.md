@@ -107,8 +107,11 @@ Tray-App, für Skripte oder einen Scheduled-Task-Betrieb.
 
 ## Was v1 kann — und was (noch) fehlt
 
-**Funktioniert heute (code-vollständig, in CI auf `windows-latest` verifiziert,
-dass es kompiliert und COM korrekt marshaled):**
+**Funktioniert heute — erster Feldtest auf echtem Windows bestanden (11 ARM64
+24H2, 3.7.2026): `calltap procs` läuft sauber, und die Zwei-Spuren-Aufnahme ist
+bewiesen — ein 440-Hz-Testton via Process Loopback mit −0,1 dBFS Peak
+aufgenommen, Mikrofon parallel erfasst. Nativer ARM64-Build funktioniert.
+Weiterhin experimentell — mehr Maschinen, mehr Berichte, bitte:**
 
 - Pro-App-Systemaudio-Aufnahme via WASAPI Process Loopback (inkl./exkl.
   Kindprozessbaum der Ziel-App)
@@ -144,11 +147,11 @@ dass es kompiliert und COM korrekt marshaled):**
   `install.sh` der Mac-App.
 - **Vorerst nur win-x64** — `net8.0-windows` und NAudio unterstützen zwar auch
   `win-arm64`, aber es gibt noch keine ARM64-Windows-Testabdeckung.
-- **Keine lokale Windows-Maschine für dieses Projekt** — jede Aussage über den
-  Audio-Stack hier wird durch `windows-latest` GitHub-Actions-CI verifiziert,
-  nicht von Hand. Genau deshalb ist es als experimentell markiert, und
-  Testberichte von echten Maschinen in den Issues sind gerade der wertvollste
-  Beitrag, den es geben kann.
+- **Bisher in einer VM getestet, nicht auf echter Hardware.** Der Feldtest oben
+  lief in einer Windows-11-ARM64-VM (UTM/QEMU auf Apple Silicon): Build, `procs`,
+  `setup` und eine echte Loopback-Aufnahme laufen dort durch. Echte Hardware,
+  x64-Maschinen und echte VoIP-Anrufe sind genau das, was noch ungetestet ist —
+  Berichte in den Issues sind der wertvollste Beitrag gerade.
 
 ## Installation
 
