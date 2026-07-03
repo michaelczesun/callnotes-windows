@@ -15,6 +15,7 @@ using System.Text.Json.Serialization;
 using CallTap.Capture;
 using CallTap.Recording;
 using NAudio.CoreAudioApi;
+using NAudio.CoreAudioApi.Interfaces;
 
 namespace CallTap
 {
@@ -770,12 +771,9 @@ namespace CallTap
                     byPid[(int)pid] = new ActiveMicSession((int)pid, name, session.DisplayName ?? name);
                 }
             }
-            catch (NAudio.CoreAudioApi.Interfaces.CoreAudioApiException)
-            {
-                // Kein Standard-Capture-Geraet fuer diese Rolle (z.B. CI ohne Audio-Hardware).
-            }
             catch (System.Runtime.InteropServices.COMException)
             {
+                // Kein Standard-Capture-Geraet fuer diese Rolle (z.B. CI ohne Audio-Hardware).
             }
             finally
             {
