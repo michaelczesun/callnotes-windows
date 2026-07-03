@@ -53,4 +53,9 @@
     </Content>
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- App-Icon (lila CallNotes-Icon) fuer den Panel-Header, via pack-URI in XAML. -->
+    <Resource Include="Assets\app-icon.png" />
+  </ItemGroup>
+
 </Project>
