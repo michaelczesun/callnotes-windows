@@ -789,7 +789,7 @@ namespace CallTap
                 using var device = enumerator.GetDefaultAudioEndpoint(DataFlow.Capture, Role.Communications);
                 return device != null;
             }
-            catch (Exception ex) when (ex is NAudio.CoreAudioApi.Interfaces.CoreAudioApiException or System.Runtime.InteropServices.COMException)
+            catch (System.Runtime.InteropServices.COMException)
             {
                 return false;
             }
