@@ -19,6 +19,12 @@
     <ApplicationIcon>Assets\tray.ico</ApplicationIcon>
   </PropertyGroup>
 
+  <!-- UseWindowsForms injiziert sonst ein globales 'using System.Windows.Forms',
+       das mit jedem WPF-Control-Namen kollidiert (Button, ComboBox, ...) -->
+  <ItemGroup>
+    <Using Remove="System.Windows.Forms" />
+  </ItemGroup>
+
   <ItemGroup>
     <!--
       Es gibt (fuer diesen Auftrag) kein separates CallTap.Core-Projekt — der
