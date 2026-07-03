@@ -143,6 +143,16 @@ Native ARM64 build works. Still experimental — more machines, more reports, pl
   real VoIP calls are exactly what's untested — reports in the issues are the
   most useful thing you can contribute right now.
 
+## Runs locally — what lands on your machine
+
+Everything processes on your PC: .NET 8 + Git (build), Python (pipeline),
+whisper.cpp (`whisper-cli.exe` + a ggml model — on machines with ≤ 8 GB RAM
+pick `ggml-small`, not large) and optionally sherpa-onnx for speaker
+separation/Parakeet. `installer/install.ps1` sets all of it up; no cloud is
+required (Groq and the AI summary are opt-in). Installing or debugging with an
+AI assistant? Point it at **[CLAUDE.md](CLAUDE.md)** — it contains the local
+dependency list and the field-tested traps.
+
 ## Install
 
 Requires **Windows 10 Build 20348+ or Windows 11** (older Windows 10 builds don't

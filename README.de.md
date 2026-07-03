@@ -153,6 +153,16 @@ Weiterhin experimentell — mehr Maschinen, mehr Berichte, bitte:**
   x64-Maschinen und echte VoIP-Anrufe sind genau das, was noch ungetestet ist —
   Berichte in den Issues sind der wertvollste Beitrag gerade.
 
+## Läuft lokal — was auf deinem Rechner landet
+
+Alles wird auf deinem PC verarbeitet: .NET 8 + Git (Build), Python (Pipeline),
+whisper.cpp (`whisper-cli.exe` + ein ggml-Modell — bei ≤ 8 GB RAM `ggml-small`
+statt large wählen) und optional sherpa-onnx für Sprechertrennung/Parakeet.
+`installer/install.ps1` richtet alles ein; Cloud ist nirgends Pflicht (Groq und
+die KI-Zusammenfassung sind opt-in). Du installierst/debuggst mit einem
+KI-Assistenten? Gib ihm **[CLAUDE.md](CLAUDE.md)** — dort stehen die lokalen
+Abhängigkeiten und die im Feldtest gelernten Fallstricke.
+
 ## Installation
 
 Setzt **Windows 10 Build 20348+ oder Windows 11** voraus (ältere Windows-10-Builds

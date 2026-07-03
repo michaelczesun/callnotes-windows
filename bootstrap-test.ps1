@@ -60,4 +60,6 @@ Write-Host "  $($exe.FullName) record --exe msedge --out `$HOME\rec --seconds 12
 Write-Host "WICHTIG: --exe <prozessname> nennt die tonspielende App - ohne --exe lauscht record" -ForegroundColor Green
 Write-Host "auf die eigene PID und system.wav ist konstruktionsbedingt still (kein Bug!)." -ForegroundColor Green
 Write-Host "Danach pruefen, ob `$HOME\rec\system.wav Ton enthaelt - das ist der WASAPI-Loopback-Beweis." -ForegroundColor Green
-Write-Host "`nBericht bitte als Issue: https://github.com/michaelczesun/callnotes-windows/issues" -ForegroundColor Cyan
+Write-Host "`nHinweis: Dieses Skript baut nur den Recorder. Die Notiz-Pipeline (Python," -ForegroundColor Cyan
+Write-Host "whisper.cpp, Modelle) richtet installer\install.ps1 ein - Details in CLAUDE.md." -ForegroundColor Cyan
+Write-Host "Bericht bitte als Issue: https://github.com/michaelczesun/callnotes-windows/issues" -ForegroundColor Cyan
