@@ -9,6 +9,8 @@
       1) Abhaengigkeiten pruefen/holen (ffmpeg, python via winget; .NET 8 SDK nur Hinweis)
       2) whisper.cpp-Windows-Release (whisper-cli.exe) + ggml-large-v3-turbo-q5_0.bin laden
       3) sherpa-onnx + Diarisierungs-Modelle in venv (%LOCALAPPDATA%\callnotes\venv)
+         + optional Parakeet-TDT-v3-Modell (-WithParakeet, ~700 MB, schnellste lokale
+         Transkription, 25 EU-Sprachen, config.json "transcriber":"parakeet")
       4) dotnet build -c Release (CallTap.sln)
       5) config.json aus config.example.json anlegen (postScript/Pfade setzen)
       6) Autostart fuer calltap.exe watch + CallNotesTray via Scheduled Task (schtasks /sc onlogon)
@@ -30,7 +32,12 @@ param(
     [switch]$SkipBuild,
 
     # Ueberspringt Download der grossen Modelle (whisper + Diarisierung). Fuer schnelle Reinstalls.
-    [switch]$SkipModels
+    [switch]$SkipModels,
+
+    # Laedt zusaetzlich das Parakeet-TDT-v3-Modell (~700 MB, sherpa-onnx, 25 EU-Sprachen,
+    # schnellste Transkriptions-Option). Optional, da gross und nicht jeder es braucht —
+    # per config.json "transcriber":"parakeet" aktivieren.
+    [switch]$WithParakeet
 )
 
 $ErrorActionPreference = "Stop"
@@ -325,6 +332,36 @@ if ((Test-Path $EmbedModelPath) -and -not $SkipModels) {
     }
 } else {
     Write-Host "  uebersprungen (-SkipModels)"
+}
+
+# Parakeet TDT v3 (optional, -WithParakeet): lokale Transkription via sherpa-onnx,
+# schnellste Option, 25 EU-Sprachen. Landet im selben Modellordner wie die
+# Diarisierungs-Modelle ($DiaModels = %LOCALAPPDATA%\callnotes\models), passend zum
+# Default in pipeline/transcribe_parakeet.py (Override: CALLNOTES_PARAKEET_DIR).
+$ParakeetDir = Join-Path $DiaModels "sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8"
+if ($WithParakeet) {
+    if ((Test-Path (Join-Path $ParakeetDir "tokens.txt")) -and -not $SkipModels) {
+        Write-Host "  Parakeet-TDT-v3-Modell bereits vorhanden."
+    } elseif (-not $SkipModels) {
+        Write-Host "  Lade Parakeet-TDT-v3-Modell (~700 MB) — kann etwas dauern..."
+        $parakeetArchive = Join-Path $DiaModels "parakeet-tdt-v3.tar.bz2"
+        $ok = Invoke-DownloadWithRetry -Url "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8.tar.bz2" -OutFile $parakeetArchive -Retries 5
+        if ($ok) {
+            $extracted = Expand-TarBz2 -ArchivePath $parakeetArchive -DestDir $DiaModels
+            Remove-Item $parakeetArchive -Force -ErrorAction SilentlyContinue
+            if ($extracted -and (Test-Path (Join-Path $ParakeetDir "tokens.txt"))) {
+                Write-Host "  Parakeet-TDT-v3-Modell installiert: $ParakeetDir" -ForegroundColor Green
+            } else {
+                Write-Host "  WARNUNG: Parakeet-Modell konnte nicht entpackt werden oder liegt in einem anderen Unterordner — manuell pruefen: $DiaModels" -ForegroundColor DarkYellow
+            }
+        } else {
+            Write-Host "  WARNUNG: Parakeet-Modell-Download fehlgeschlagen. Manuell: https://github.com/k2-fsa/sherpa-onnx/releases/tag/asr-models" -ForegroundColor DarkYellow
+        }
+    } else {
+        Write-Host "  uebersprungen (-SkipModels)"
+    }
+} else {
+    Write-Host "  Parakeet-TDT-v3-Modell uebersprungen (nur mit -WithParakeet)."
 }
 
 # ------------------------------------------------------------------------------------

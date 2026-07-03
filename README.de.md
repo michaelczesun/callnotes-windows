@@ -67,6 +67,8 @@ sichtbaren Meeting-Bot oder ein Cloud-Abo. CallNotes nicht:
   Dropdown zu.
 - Transkription läuft **on-device** (whisper.cpp) — oder über die Groq-API, wenn
   dir Tempo wichtiger ist als volle Offline-Nutzung. Ein Config-Schalter.
+- **Parakeet TDT v3** (sherpa-onnx, on-device) ist die schnellste lokale Option,
+  mit Unterstützung für 25 EU-Sprachen — laden via `install.ps1 -WithParakeet`.
 - **KI deiner Wahl** für die Zusammenfassung: Claude Code (Standard), jede
   OpenAI-kompatible API (OpenAI, Groq, OpenRouter), komplett lokal via **Ollama**
   — oder ganz ohne.

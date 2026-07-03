@@ -352,6 +352,17 @@ def transcribe_track(
         else:
             say("  Groq nicht erreichbar — lokal (whisper.cpp)")
 
+    # Parakeet TDT v3 (lokal via sherpa-onnx, sehr schnell, 25 EU-Sprachen) —
+    # Fallback lokal (whisper-cli) bei Fehler, wie beim Groq-Zweig oben.
+    if cfg.transcriber == "parakeet":
+        try:
+            parakeet_ok = _parakeet_transcribe(wav, json_out, cfg.venv_python, rec)
+        except Exception as e:
+            parakeet_ok = False
+            (rec / "parakeet.log").open("a", encoding="utf-8").write(f"{e}\n")
+        if not parakeet_ok:
+            say("  Parakeet fehlgeschlagen — lokal (whisper.cpp)")
+
     if not (json_out.is_file() and json_out.stat().st_size > 0):
         run([
             whisper_cli_bin(), "-m", cfg.model, "-l", cfg.language, "-np",
@@ -405,6 +416,30 @@ def _groq_transcribe(wav: Path, out_json: Path, groq_key: str, language: str, re
         with open(rec / "groq.log", "a", encoding="utf-8") as f:
             f.write(f"{e}\n")
         return False
+
+
+def _parakeet_transcribe(wav: Path, out_json: Path, venv_python: str, rec: Path) -> bool:
+    """Parakeet TDT v3 via pipeline/transcribe_parakeet.py im venv-Python (sherpa-onnx,
+    gleiche Runtime wie die Diarisierung). Rueckgabe True = Erfolg (JSON vorhanden)."""
+    venv_py = Path(venv_python)
+    if not venv_py.is_file():
+        with open(rec / "parakeet.log", "a", encoding="utf-8") as f:
+            f.write(f"venv-Python fehlt: {venv_py}\n")
+        return False
+
+    script = SCRIPT_DIR / "transcribe_parakeet.py"
+    r = subprocess.run(
+        [str(venv_py), str(script), str(wav), str(out_json)],
+        capture_output=True, text=True,
+        creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+    )
+    if r.stderr:
+        with open(rec / "parakeet.log", "a", encoding="utf-8") as f:
+            f.write(r.stderr)
+    if r.returncode != 0:
+        return False
+
+    return out_json.is_file() and out_json.stat().st_size > 0
 
 
 # ============================================================================
@@ -937,7 +972,7 @@ def main() -> int:
         say(f"FEHLER: Verzeichnis fehlt: {rec}")
         return 1
 
-    if not (cfg.transcriber == "groq" and groq_key):
+    if cfg.transcriber == "local":
         if not (cfg.model and Path(cfg.model).is_file()):
             say(f"FEHLER: Whisper-Modell fehlt (config 'whisperModel'): {cfg.model or 'nicht gesetzt'}")
             return 1

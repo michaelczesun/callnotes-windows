@@ -101,6 +101,7 @@ public partial class MainPanel : Window
             item.Content = (string)item.Tag switch
             {
                 "groq" => L("Groq (Cloud)", "Groq (cloud)"),
+                "parakeet" => "Parakeet",
                 _ => L("Lokal (whisper.cpp)", "Local (whisper.cpp)"),
             };
         }

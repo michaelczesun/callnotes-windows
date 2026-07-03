@@ -63,6 +63,8 @@ bot, or a cloud subscription. CallNotes needs none of that:
   dropdown.
 - Transcription runs **on-device** (whisper.cpp) — or via the Groq API if you
   prefer speed over full offline. Your choice, one config key.
+- **Parakeet TDT v3** (sherpa-onnx, on-device) is the fastest local option, with
+  support for 25 EU languages — grab it via `install.ps1 -WithParakeet`.
 - **Bring your own AI** for summaries: Claude Code (default), any
   OpenAI-compatible API (OpenAI, Groq, OpenRouter), fully local via **Ollama** —
   or none at all.

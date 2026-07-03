@@ -149,6 +149,7 @@
                         <ComboBox x:Name="TranscriberCombo" Margin="0,0,0,10" SelectionChanged="TranscriberCombo_SelectionChanged">
                             <ComboBoxItem Content="Lokal (whisper.cpp)" Tag="local"/>
                             <ComboBoxItem Content="Groq (Cloud)" Tag="groq"/>
+                            <ComboBoxItem Content="Parakeet" Tag="parakeet"/>
                         </ComboBox>
 
                         <TextBlock x:Name="GroqKeyLabel" Text="Groq API-Key" FontSize="11" Foreground="{StaticResource BrushTextSecondary}" Margin="0,0,0,4" Visibility="Collapsed"/>
