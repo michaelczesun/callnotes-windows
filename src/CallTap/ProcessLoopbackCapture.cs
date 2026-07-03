@@ -125,10 +125,10 @@ public sealed class ProcessLoopbackCapture : IAudioTrackCapture, IDisposable
 
         _audioClient!.Initialize(
             AUDCLNT_SHAREMODE.Shared,
-            // Kein AUDCLNT_STREAMFLAGS_LOOPBACK hier — der Aktivierungstyp
-            // PROCESS_LOOPBACK impliziert bereits Capture-of-render-Semantik;
-            // entspricht dem Initialize-Aufruf im ApplicationLoopback-Sample.
-            AUDCLNT_STREAMFLAGS.None,
+            // AUDCLNT_STREAMFLAGS_LOOPBACK ist auch bei Process-Loopback Pflicht
+            // (wie im MS-ApplicationLoopback-Sample); ohne das Flag antwortet
+            // WASAPI mit 0x88890021 AUDCLNT_E_INVALID_STREAM_FLAG.
+            AUDCLNT_STREAMFLAGS.AUDCLNT_STREAMFLAGS_LOOPBACK,
             hnsBufferDuration: 200_0000, // 200ms in 100-ns-Einheiten
             hnsPeriodicity: 0,           // im Shared-Mode zwingend 0
             pFormat: ref format,

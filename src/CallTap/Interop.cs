@@ -147,9 +147,7 @@ internal enum AUDCLNT_STREAMFLAGS : uint
 {
     None = 0,
     AUDCLNT_STREAMFLAGS_EVENTCALLBACK = 0x00040000,
-    // Nur fuer den klassischen Full-Endpoint-Fallback relevant, NICHT fuer
-    // Process-Loopback (dort impliziert bereits der Aktivierungstyp selbst
-    // Loopback-Semantik).
+    // Pflicht fuer JEDE Loopback-Initialisierung, auch Process-Loopback.
     AUDCLNT_STREAMFLAGS_LOOPBACK = 0x00020000,
 }
 

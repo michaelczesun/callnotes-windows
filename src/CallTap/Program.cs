@@ -148,7 +148,8 @@ namespace CallTap
             catch (Exception ex)
             {
                 Console.WriteLine($"   FEHLER: {ex.Message}");
-                Console.WriteLine("   -> Process-Loopback-Aufnahme benoetigt mindestens Windows 10 Build 20348.");
+                Console.WriteLine("   -> Moegliche Ursachen: Windows aelter als Build 20348, kein Wiedergabegeraet,");
+                Console.WriteLine("      oder 0x88890021 = ungueltige Stream-Flags (Bug melden).");
                 ok = false;
             }
 
@@ -312,7 +313,7 @@ namespace CallTap
             catch (Exception ex)
             {
                 Log($"WARNUNG: Systemaudio-Selbsttest fehlgeschlagen ({ex.Message}) — " +
-                    "erfordert mind. Windows 10 Build 20348.");
+                    "Windows < Build 20348, kein Wiedergabegeraet oder Stream-Flag-Problem (0x88890021).");
             }
 
             int selfPid = Environment.ProcessId;
