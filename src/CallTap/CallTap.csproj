@@ -19,9 +19,8 @@
     <LangVersion>latest</LangVersion>
 
     <!-- Release-Publish: siehe Contract 8.2 (CallTap.Cli.csproj) -->
-    <PublishSingleFile Condition="'$(Configuration)'=='Release'">true</PublishSingleFile>
-    <SelfContained Condition="'$(Configuration)'=='Release'">true</SelfContained>
-    <RuntimeIdentifier Condition="'$(Configuration)'=='Release'">win-x64</RuntimeIdentifier>
+    <!-- Kein RID im normalen Build (sonst RID-Mismatch mit dem sln-Restore in CI);
+         Single-File/Self-Contained kommen ausschliesslich beim publish per CLI-Flags. -->
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
   </PropertyGroup>
 

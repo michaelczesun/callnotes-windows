@@ -76,7 +76,7 @@ $WhisperDir   = Join-Path $ToolsDir "whisper-cpp"
 # kein RuntimeIdentifier, bleibt also im framework-abhaengigen Pfad ohne RID-
 # Unterordner.
 $SolutionPath = Join-Path $RepoRoot "CallTap.sln"
-$CliExe       = Join-Path $RepoRoot "src\CallTap\bin\Release\net8.0-windows\win-x64\calltap.exe"
+$CliExe       = Join-Path $RepoRoot "src\CallTap\bin\Release\net8.0-windows\calltap.exe"
 $TrayExe      = Join-Path $RepoRoot "src\CallNotesTray\bin\Release\net8.0-windows\CallNotesTray.exe"
 
 Write-Host "== CallNotes install (Windows) ==" -ForegroundColor Cyan
