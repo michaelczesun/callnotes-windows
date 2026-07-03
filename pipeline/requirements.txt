@@ -1,0 +1,11 @@
+# Python-Abhaengigkeiten der Verarbeitungs-Pipeline (pipeline/*.py).
+# Installiert von installer/install.ps1 ins venv unter
+# %LOCALAPPDATA%\callnotes\venv (siehe docs/contract.md Abschnitt 2/"pipeline/").
+#
+# sherpa-onnx + numpy werden von install.ps1 zusaetzlich VOR dieser Datei explizit
+# installiert (Schritt "Diarisierungs-Umgebung"), stehen hier trotzdem mit drin,
+# damit `pip install -r requirements.txt` allein (z.B. manuelles venv-Setup, CI)
+# ebenfalls alles Noetige bekommt. Muss mit der Mac-Pipeline (callnotes/pipeline)
+# im Gleichschritt bleiben, wo dieselbe Bibliothek verwendet wird.
+sherpa-onnx>=1.10.0
+numpy>=1.26.0

@@ -1,0 +1,182 @@
+<Window x:Class="CallNotesTray.MainPanel"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="CallNotes"
+        Width="400"
+        MinWidth="400"
+        MaxWidth="400"
+        SizeToContent="Height"
+        MaxHeight="800"
+        WindowStartupLocation="Manual"
+        ResizeMode="NoResize"
+        Background="{StaticResource BrushWindowBg}"
+        Foreground="{StaticResource BrushTextPrimary}"
+        FontFamily="Segoe UI"
+        FontSize="13"
+        ShowInTaskbar="False"
+        Topmost="False">
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="800">
+        <StackPanel Margin="16" x:Name="RootStack">
+
+            <!-- Kopfzeile: App-Name + Daemon-Status -->
+            <DockPanel Margin="0,0,0,14">
+                <TextBlock Text="CallNotes" FontSize="17" FontWeight="SemiBold" DockPanel.Dock="Left"/>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                    <Ellipse x:Name="DaemonStatusDot" Width="9" Height="9" Margin="0,0,6,0" Fill="{StaticResource BrushTextSecondary}"/>
+                    <TextBlock x:Name="DaemonStatusText" Text="…" Foreground="{StaticResource BrushTextSecondary}" FontSize="12"/>
+                </StackPanel>
+            </DockPanel>
+
+            <!-- Karte: laufender Anruf -->
+            <Border x:Name="ActiveCallCard" Background="{StaticResource BrushPanelBg}" CornerRadius="10" Padding="14" Margin="0,0,0,12" BorderBrush="{StaticResource BrushBorder}" BorderThickness="1">
+                <StackPanel>
+                    <DockPanel Margin="0,0,0,8">
+                        <TextBlock x:Name="ActiveCallTitle" Text="Aktiver Anruf" FontWeight="SemiBold" DockPanel.Dock="Left"/>
+                        <TextBlock x:Name="ActiveCallDuration" Text="00:00" Foreground="{StaticResource BrushTextSecondary}" HorizontalAlignment="Right"/>
+                    </DockPanel>
+                    <TextBlock x:Name="ActiveCallApp" Text="—" Foreground="{StaticResource BrushTextSecondary}" Margin="0,0,0,10" TextWrapping="Wrap"/>
+
+                    <!-- Pegel-Balken Mikrofon -->
+                    <Grid Margin="0,0,0,6">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="46"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock x:Name="MicLabel" Text="Mikro" Foreground="{StaticResource BrushTextSecondary}" FontSize="11" VerticalAlignment="Center"/>
+                        <Border Grid.Column="1" Background="{StaticResource BrushCardBg}" CornerRadius="4" Height="10" ClipToBounds="True">
+                            <Border x:Name="MicLevelBar" Background="{StaticResource BrushLevelMic}" CornerRadius="4" HorizontalAlignment="Left" Width="0"/>
+                        </Border>
+                    </Grid>
+
+                    <!-- Pegel-Balken System -->
+                    <Grid Margin="0,0,0,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="46"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock x:Name="SysLabel" Text="System" Foreground="{StaticResource BrushTextSecondary}" FontSize="11" VerticalAlignment="Center"/>
+                        <Border Grid.Column="1" Background="{StaticResource BrushCardBg}" CornerRadius="4" Height="10" ClipToBounds="True">
+                            <Border x:Name="SysLevelBar" Background="{StaticResource BrushLevelSys}" CornerRadius="4" HorizontalAlignment="Left" Width="0"/>
+                        </Border>
+                    </Grid>
+
+                    <!-- Teilnehmer-Eingabe -->
+                    <TextBlock x:Name="ParticipantsLabel" Text="Teilnehmer (Komma-getrennt)" FontSize="11" Foreground="{StaticResource BrushTextSecondary}" Margin="0,0,0,4"/>
+                    <Grid Margin="0,0,0,10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBox x:Name="ParticipantsInput" Grid.Column="0" Margin="0,0,8,0"/>
+                        <Button x:Name="SaveParticipantsButton" Grid.Column="1" Content="Speichern" Style="{StaticResource PillButton}" Click="SaveParticipantsButton_Click"/>
+                    </Grid>
+
+                    <Button x:Name="DiscardCallButton" Content="Diesen Anruf nicht aufnehmen" Style="{StaticResource DangerButton}" HorizontalAlignment="Stretch" Click="DiscardCallButton_Click"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Kein aktiver Anruf -->
+            <Border x:Name="NoActiveCallCard" Background="{StaticResource BrushPanelBg}" CornerRadius="10" Padding="14" Margin="0,0,0,12" BorderBrush="{StaticResource BrushBorder}" BorderThickness="1">
+                <TextBlock x:Name="NoActiveCallText" Text="Aktuell läuft kein Anruf." Foreground="{StaticResource BrushTextSecondary}" TextWrapping="Wrap"/>
+            </Border>
+
+            <!-- Ausstehende Sprecher-Zuordnungen -->
+            <Border x:Name="PendingSection" Background="{StaticResource BrushPanelBg}" CornerRadius="10" Padding="14" Margin="0,0,0,12" BorderBrush="{StaticResource BrushBorder}" BorderThickness="1" Visibility="Collapsed">
+                <StackPanel>
+                    <TextBlock x:Name="PendingTitle" Text="Sprecher zuordnen" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                    <StackPanel x:Name="PendingList"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Letzte Notizen -->
+            <Border Background="{StaticResource BrushPanelBg}" CornerRadius="10" Padding="14" Margin="0,0,0,12" BorderBrush="{StaticResource BrushBorder}" BorderThickness="1">
+                <StackPanel>
+                    <TextBlock x:Name="RecentNotesTitle" Text="Letzte Notizen" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                    <StackPanel x:Name="RecentNotesList"/>
+                    <TextBlock x:Name="RecentNotesEmpty" Text="Noch keine Notizen." Foreground="{StaticResource BrushTextSecondary}" Visibility="Collapsed"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Fehlgeschlagene Aufnahmen -->
+            <Border x:Name="FailedSection" Background="{StaticResource BrushPanelBg}" CornerRadius="10" Padding="14" Margin="0,0,0,12" BorderBrush="{StaticResource BrushBorder}" BorderThickness="1" Visibility="Collapsed">
+                <StackPanel>
+                    <TextBlock x:Name="FailedTitle" Text="Fehlgeschlagene Aufnahmen" FontWeight="SemiBold" Margin="0,0,0,8"/>
+                    <StackPanel x:Name="FailedList"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Einstellungen (minimal) -->
+            <Border Background="{StaticResource BrushPanelBg}" CornerRadius="10" Padding="14" Margin="0,0,0,4" BorderBrush="{StaticResource BrushBorder}" BorderThickness="1">
+                <StackPanel>
+                    <DockPanel Margin="0,0,0,10">
+                        <TextBlock x:Name="SettingsTitle" Text="Einstellungen" FontWeight="SemiBold" DockPanel.Dock="Left"/>
+                        <TextBlock x:Name="SettingsToggle" Text="▾" DockPanel.Dock="Right" HorizontalAlignment="Right" Cursor="Hand" MouseLeftButtonUp="SettingsToggle_MouseLeftButtonUp"/>
+                    </DockPanel>
+
+                    <StackPanel x:Name="SettingsBody">
+                        <!-- Speicherorte -->
+                        <TextBlock x:Name="OutDirLabel" Text="Datenordner" FontSize="11" Foreground="{StaticResource BrushTextSecondary}" Margin="0,0,0,4"/>
+                        <Grid Margin="0,0,0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBox x:Name="OutDirInput" Grid.Column="0" Margin="0,0,8,0"/>
+                            <Button x:Name="BrowseOutDirButton" Grid.Column="1" Content="…" Style="{StaticResource PillButton}" Click="BrowseOutDirButton_Click"/>
+                        </Grid>
+
+                        <TextBlock x:Name="NotesDirLabel" Text="Notizen-Ordner" FontSize="11" Foreground="{StaticResource BrushTextSecondary}" Margin="0,0,0,4"/>
+                        <Grid Margin="0,0,0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBox x:Name="NotesDirInput" Grid.Column="0" Margin="0,0,8,0"/>
+                            <Button x:Name="BrowseNotesDirButton" Grid.Column="1" Content="…" Style="{StaticResource PillButton}" Click="BrowseNotesDirButton_Click"/>
+                        </Grid>
+
+                        <!-- Sprache -->
+                        <TextBlock x:Name="LanguageLabel" Text="Sprache" FontSize="11" Foreground="{StaticResource BrushTextSecondary}" Margin="0,0,0,4"/>
+                        <ComboBox x:Name="LanguageCombo" Margin="0,0,0,10" SelectionChanged="LanguageCombo_SelectionChanged">
+                            <ComboBoxItem Content="System" Tag="system"/>
+                            <ComboBoxItem Content="Deutsch" Tag="de"/>
+                            <ComboBoxItem Content="English" Tag="en"/>
+                        </ComboBox>
+
+                        <!-- Transcriber -->
+                        <TextBlock x:Name="TranscriberLabel" Text="Transkription" FontSize="11" Foreground="{StaticResource BrushTextSecondary}" Margin="0,0,0,4"/>
+                        <ComboBox x:Name="TranscriberCombo" Margin="0,0,0,10" SelectionChanged="TranscriberCombo_SelectionChanged">
+                            <ComboBoxItem Content="Lokal (whisper.cpp)" Tag="local"/>
+                            <ComboBoxItem Content="Groq (Cloud)" Tag="groq"/>
+                        </ComboBox>
+
+                        <TextBlock x:Name="GroqKeyLabel" Text="Groq API-Key" FontSize="11" Foreground="{StaticResource BrushTextSecondary}" Margin="0,0,0,4" Visibility="Collapsed"/>
+                        <TextBox x:Name="GroqKeyInput" Margin="0,0,0,10" Visibility="Collapsed"/>
+
+                        <!-- Summarizer -->
+                        <TextBlock x:Name="SummarizerLabel" Text="Zusammenfassung" FontSize="11" Foreground="{StaticResource BrushTextSecondary}" Margin="0,0,0,4"/>
+                        <ComboBox x:Name="SummarizerCombo" Margin="0,0,0,10" SelectionChanged="SummarizerCombo_SelectionChanged">
+                            <ComboBoxItem Content="Claude" Tag="claude"/>
+                            <ComboBoxItem Content="OpenAI-kompatibel" Tag="openai"/>
+                            <ComboBoxItem Content="Aus" Tag="off"/>
+                        </ComboBox>
+
+                        <TextBlock x:Name="SummarizerUrlLabel" Text="API-URL" FontSize="11" Foreground="{StaticResource BrushTextSecondary}" Margin="0,0,0,4" Visibility="Collapsed"/>
+                        <TextBox x:Name="SummarizerUrlInput" Margin="0,0,0,10" Visibility="Collapsed"/>
+
+                        <TextBlock x:Name="SummarizerModelLabel" Text="Modell" FontSize="11" Foreground="{StaticResource BrushTextSecondary}" Margin="0,0,0,4" Visibility="Collapsed"/>
+                        <TextBox x:Name="SummarizerModelInput" Margin="0,0,0,10" Visibility="Collapsed"/>
+
+                        <TextBlock x:Name="SummarizerApiKeyLabel" Text="API-Key" FontSize="11" Foreground="{StaticResource BrushTextSecondary}" Margin="0,0,0,4" Visibility="Collapsed"/>
+                        <TextBox x:Name="SummarizerApiKeyInput" Margin="0,0,0,10" Visibility="Collapsed"/>
+
+                        <Button x:Name="SaveSettingsButton" Content="Einstellungen speichern" Style="{StaticResource AccentButton}" HorizontalAlignment="Stretch" Click="SaveSettingsButton_Click"/>
+                        <TextBlock x:Name="SettingsSavedHint" Text="" FontSize="11" Foreground="{StaticResource BrushSuccess}" Margin="0,8,0,0" HorizontalAlignment="Center"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+        </StackPanel>
+    </ScrollViewer>
+</Window>

@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Konsolenanwendung "calltap" — CLI-Einstiegspunkt fuer den Windows-Recorder-Core.
+    Enthaelt (fuer diese Zuteilung) sowohl den Core-Code (Interop/Capture/Wav) als auch
+    Program.cs in einem einzigen Projekt, siehe docs/contract.md Abschnitt 2/8 fuer die
+    langfristige CallTap.Core/CallTap.Cli/CallTap.Tray-Aufteilung. Hier bewusst
+    zusammengefasst, weil nur dieses eine Projekt in Auftrag ist.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <AssemblyName>calltap</AssemblyName>
+    <RootNamespace>CallTap</RootNamespace>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Platforms>x64</Platforms>
+    <LangVersion>latest</LangVersion>
+
+    <!-- Release-Publish: siehe Contract 8.2 (CallTap.Cli.csproj) -->
+    <PublishSingleFile Condition="'$(Configuration)'=='Release'">true</PublishSingleFile>
+    <SelfContained Condition="'$(Configuration)'=='Release'">true</SelfContained>
+    <RuntimeIdentifier Condition="'$(Configuration)'=='Release'">win-x64</RuntimeIdentifier>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="NAudio" Version="2.2.1" />
+  </ItemGroup>
+
+</Project>

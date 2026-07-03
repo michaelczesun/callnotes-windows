@@ -1,0 +1,84 @@
+name: build
+
+# CI ist der einzige echte Windows-Testbed fuer dieses Projekt (siehe
+# docs/contract.md Abschnitt 9) — es gibt keine lokale Windows-Maschine.
+# Jeder rote Build hier ist ein echter Architektur-Bug, kein Flake.
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v4
+
+      - name: .NET 8 SDK einrichten
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Python einrichten (fuer Pipeline-Syntaxcheck)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # --- .NET Build --------------------------------------------------
+      # Tatsaechliche Projektnamen fuer diesen Auftrag (siehe CallTap.sln im
+      # Repo-Root): src/CallTap/CallTap.csproj (Konsole/CLI, AssemblyName
+      # "calltap", enthaelt Core+CLI in einem Projekt) und
+      # src/CallNotesTray/CallNotesTray.csproj (WPF-Tray). Der volle
+      # Langfrist-Contract (Abschnitt 2: CallTap.Core/CallTap.Cli/CallTap.Tray/
+      # CallTap.Tests-Aufteilung) ist noch nicht umgesetzt.
+
+      - name: NuGet-Pakete wiederherstellen (CallTap-Loesung)
+        run: dotnet restore CallTap.sln
+        working-directory: ${{ github.workspace }}
+
+      - name: CallTap (CLI) bauen (Release)
+        run: dotnet build src/CallTap/CallTap.csproj -c Release --no-restore
+
+      - name: CallNotesTray bauen (Release)
+        run: dotnet build src/CallNotesTray/CallNotesTray.csproj -c Release --no-restore
+
+      # --- Python-Pipeline: reiner Syntax-/Compile-Check -----------------
+      # Kein pytest hier, nur py_compile — die Pipeline braucht echte
+      # Modelle/Binaries (whisper.cpp, sherpa-onnx) zur Laufzeit, die in CI
+      # nicht vorhanden sind. Ziel ist nur: kein SyntaxError im Quellbaum.
+
+      - name: Python-Pipeline auf Syntaxfehler pruefen
+        shell: bash
+        run: python -m py_compile pipeline/*.py
+
+      # --- Release-Artefakte veroeffentlichen ---------------------------
+      # Self-contained Single-File-Publish fuer die CLI, framework-abhaengiger
+      # Release-Build fuer die Tray-App (siehe Contract Abschnitt 8/9).
+
+      - name: calltap (CLI) veroeffentlichen
+        run: >
+          dotnet publish src/CallTap/CallTap.csproj
+          -c Release
+          -r win-x64
+          --self-contained true
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -o publish/CallTap
+
+      - name: CallNotesTray veroeffentlichen
+        run: >
+          dotnet publish src/CallNotesTray/CallNotesTray.csproj
+          -c Release
+          -o publish/CallNotesTray
+
+      - name: Release-Binaries als Artefakt hochladen
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: callnotes-windows-binaries
+          path: |
+            publish/CallTap/**
+            publish/CallNotesTray/**
+          if-no-files-found: error

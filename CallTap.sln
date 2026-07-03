@@ -1,0 +1,28 @@
+
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.9.34728.123
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CallTap", "src\CallTap\CallTap.csproj", "{F886E702-604E-47DA-A947-91732C5F25CA}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CallNotesTray", "src\CallNotesTray\CallNotesTray.csproj", "{8740774B-909A-40A1-A5E0-CB166903AABF}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x64 = Debug|x64
+		Release|x64 = Release|x64
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{F886E702-604E-47DA-A947-91732C5F25CA}.Debug|x64.ActiveCfg = Debug|x64
+		{F886E702-604E-47DA-A947-91732C5F25CA}.Debug|x64.Build.0 = Debug|x64
+		{F886E702-604E-47DA-A947-91732C5F25CA}.Release|x64.ActiveCfg = Release|x64
+		{F886E702-604E-47DA-A947-91732C5F25CA}.Release|x64.Build.0 = Release|x64
+		{8740774B-909A-40A1-A5E0-CB166903AABF}.Debug|x64.ActiveCfg = Debug|x64
+		{8740774B-909A-40A1-A5E0-CB166903AABF}.Debug|x64.Build.0 = Debug|x64
+		{8740774B-909A-40A1-A5E0-CB166903AABF}.Release|x64.ActiveCfg = Release|x64
+		{8740774B-909A-40A1-A5E0-CB166903AABF}.Release|x64.Build.0 = Release|x64
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal

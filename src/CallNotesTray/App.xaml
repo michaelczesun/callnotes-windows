@@ -1,0 +1,81 @@
+<Application x:Class="CallNotesTray.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             ShutdownMode="OnExplicitShutdown">
+    <!--
+        ShutdownMode=OnExplicitShutdown: es gibt bewusst KEIN StartupUri/Hauptfenster.
+        Die App lebt ausschliesslich als Tray-Icon (System.Windows.Forms.NotifyIcon,
+        siehe App.xaml.cs) und wird nur ueber den Tray-Kontextmenue-Punkt "Beenden"
+        beendet, niemals durch Schliessen eines Fensters.
+    -->
+    <Application.Resources>
+        <ResourceDictionary>
+            <!-- Zentrale Dark-Palette, von MainPanel.xaml wiederverwendet. -->
+            <SolidColorBrush x:Key="BrushWindowBg" Color="#1E1E22"/>
+            <SolidColorBrush x:Key="BrushPanelBg" Color="#26262B"/>
+            <SolidColorBrush x:Key="BrushCardBg" Color="#2E2E34"/>
+            <SolidColorBrush x:Key="BrushBorder" Color="#3A3A42"/>
+            <SolidColorBrush x:Key="BrushTextPrimary" Color="#F2F2F4"/>
+            <SolidColorBrush x:Key="BrushTextSecondary" Color="#A6A6AE"/>
+            <SolidColorBrush x:Key="BrushAccent" Color="#5B8CFF"/>
+            <SolidColorBrush x:Key="BrushDanger" Color="#E5534B"/>
+            <SolidColorBrush x:Key="BrushSuccess" Color="#3FB27F"/>
+            <SolidColorBrush x:Key="BrushLevelMic" Color="#5B8CFF"/>
+            <SolidColorBrush x:Key="BrushLevelSys" Color="#F2A93C"/>
+
+            <Style TargetType="Button" x:Key="PillButton">
+                <Setter Property="Background" Value="{StaticResource BrushCardBg}"/>
+                <Setter Property="Foreground" Value="{StaticResource BrushTextPrimary}"/>
+                <Setter Property="BorderBrush" Value="{StaticResource BrushBorder}"/>
+                <Setter Property="BorderThickness" Value="1"/>
+                <Setter Property="Padding" Value="10,6"/>
+                <Setter Property="Cursor" Value="Hand"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="6"
+                                    Padding="{TemplateBinding Padding}">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <Style TargetType="Button" x:Key="DangerButton" BasedOn="{StaticResource PillButton}">
+                <Setter Property="Background" Value="{StaticResource BrushDanger}"/>
+                <Setter Property="Foreground" Value="White"/>
+                <Setter Property="BorderBrush" Value="{StaticResource BrushDanger}"/>
+            </Style>
+
+            <Style TargetType="Button" x:Key="AccentButton" BasedOn="{StaticResource PillButton}">
+                <Setter Property="Background" Value="{StaticResource BrushAccent}"/>
+                <Setter Property="Foreground" Value="White"/>
+                <Setter Property="BorderBrush" Value="{StaticResource BrushAccent}"/>
+            </Style>
+
+            <Style TargetType="TextBox">
+                <Setter Property="Background" Value="{StaticResource BrushCardBg}"/>
+                <Setter Property="Foreground" Value="{StaticResource BrushTextPrimary}"/>
+                <Setter Property="BorderBrush" Value="{StaticResource BrushBorder}"/>
+                <Setter Property="BorderThickness" Value="1"/>
+                <Setter Property="Padding" Value="6,4"/>
+                <Setter Property="CaretBrush" Value="{StaticResource BrushTextPrimary}"/>
+            </Style>
+
+            <Style TargetType="ComboBox">
+                <Setter Property="Background" Value="{StaticResource BrushCardBg}"/>
+                <Setter Property="Foreground" Value="{StaticResource BrushTextPrimary}"/>
+                <Setter Property="BorderBrush" Value="{StaticResource BrushBorder}"/>
+                <Setter Property="Padding" Value="6,4"/>
+            </Style>
+
+            <Style TargetType="TextBlock">
+                <Setter Property="Foreground" Value="{StaticResource BrushTextPrimary}"/>
+            </Style>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>

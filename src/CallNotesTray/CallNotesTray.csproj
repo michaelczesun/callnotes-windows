@@ -1,0 +1,50 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    CallNotes Tray — Windows-Aequivalent der Mac-Menueleiste (SettingsApp.swift).
+    Kein NotifyIcon-Fremdpaket (Hardcodet.NotifyIcon.Wpf): System.Windows.Forms.NotifyIcon
+    laesst sich problemlos aus einer WPF-App heraus hosten (UseWindowsForms=true reicht),
+    das spart eine zusaetzliche Abhaengigkeit.
+  -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Platforms>x64</Platforms>
+    <RootNamespace>CallNotesTray</RootNamespace>
+    <AssemblyName>CallNotesTray</AssemblyName>
+    <ApplicationIcon>Assets\tray.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      Es gibt (fuer diesen Auftrag) kein separates CallTap.Core-Projekt — der
+      Core-Code (Interop/Capture/Wav) lebt zusammen mit Program.cs im einzigen
+      Projekt src/CallTap/CallTap.csproj (AssemblyName "calltap", siehe Kommentar
+      dort). CallNotesTray verweist deshalb auf DIESES Projekt, nicht auf ein
+      nicht existierendes CallTap.Core.csproj. Sobald der volle Langfrist-Contract
+      (Abschnitt 2: CallTap.Core/CallTap.Cli/CallTap.Tray-Aufteilung) umgesetzt
+      wird, muss diese Referenz auf das dann neue CallTap.Core.csproj umgezogen
+      werden.
+    -->
+    <ProjectReference Include="..\CallTap\CallTap.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Tray-Icons (idle/recording/processing), von App.xaml.cs zur Laufzeit relativ
+         zu AppDomain.CurrentDomain.BaseDirectory geladen -> muessen im Output liegen. -->
+    <Content Include="Assets\tray.ico">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Assets\tray-recording.ico">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Assets\tray-processing.ico">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+</Project>
