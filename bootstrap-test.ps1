@@ -55,7 +55,9 @@ Write-Host "`n== calltap procs (Audio-Prozesse; MIC = nutzt gerade das Mikrofon)
 & $exe.FullName procs
 
 Write-Host "`nErfolg, wenn oben eine Prozessliste ohne Absturz erscheint." -ForegroundColor Green
-Write-Host "Naechster echter Test: irgendeine Audio-App abspielen lassen, dann in einem" -ForegroundColor Green
-Write-Host "zweiten Fenster '$($exe.FullName) record --out `$HOME\rec --seconds 12' - danach" -ForegroundColor Green
-Write-Host "pruefen ob `$HOME\rec\system.wav NICHT stumm ist (das ist der WASAPI-Loopback-Beweis)." -ForegroundColor Green
+Write-Host "Naechster echter Test: Audio in einer App abspielen (z.B. YouTube in Edge), dann:" -ForegroundColor Green
+Write-Host "  $($exe.FullName) record --exe msedge --out `$HOME\rec --seconds 12" -ForegroundColor Green
+Write-Host "WICHTIG: --exe <prozessname> nennt die tonspielende App - ohne --exe lauscht record" -ForegroundColor Green
+Write-Host "auf die eigene PID und system.wav ist konstruktionsbedingt still (kein Bug!)." -ForegroundColor Green
+Write-Host "Danach pruefen, ob `$HOME\rec\system.wav Ton enthaelt - das ist der WASAPI-Loopback-Beweis." -ForegroundColor Green
 Write-Host "`nBericht bitte als Issue: https://github.com/michaelczesun/callnotes-windows/issues" -ForegroundColor Cyan
