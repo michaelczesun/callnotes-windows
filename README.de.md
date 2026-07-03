@@ -26,6 +26,11 @@
   <img src="https://img.shields.io/badge/Windows-10%2020348%2B%20%2F%2011-black?logo=windows" alt="Windows 10 Build 20348+ / 11">
   <img src="https://img.shields.io/badge/Transkription-on--device-6D5CFF" alt="on-device">
   <img src="https://img.shields.io/badge/Lizenz-PolyForm%20Noncommercial-BF5AF2" alt="Lizenz">
+  <a href="https://github.com/michaelczesun/callnotes"><img src="https://img.shields.io/badge/macOS--Version-das%20Original-2ea44f?logo=apple" alt="macOS-Version (das Original)"></a>
+</p>
+
+<p align="center">
+  <sub>🍎 Auf einem Mac? Nimm das Original: <a href="https://github.com/michaelczesun/callnotes"><b>callnotes</b></a> — dieses Repo ist das Windows-Schwesterprojekt.</sub>
 </p>
 
 ---
