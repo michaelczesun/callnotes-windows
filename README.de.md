@@ -117,8 +117,8 @@ dass es kompiliert und COM korrekt marshaled):**
   (`calltap.swift`) portiert (`minSeconds`/`stopGraceSeconds`/`maxHours`,
   Suppress-nach-Verwerfen, Abort-Datei-Protokoll, Aufräumen verwaister
   Aufnahmen beim Start)
-- Dieselbe Python-Verarbeitungs-Pipeline: whisper.cpp/Groq-Transkription,
-  sherpa-onnx-Diarisierung, Transkript-Merge, KI-Zusammenfassung,
+- Dieselbe Python-Verarbeitungs-Pipeline: **whisper.cpp / Parakeet TDT v3 / Groq**-
+  Transkription, sherpa-onnx-Diarisierung, Transkript-Merge, KI-Zusammenfassung,
   Markdown-Notiz + MOC-Pflege, Nextcloud-/Notion-Zustellung
 - `calltap procs [--watch]` / `calltap setup` / `calltap record` / `calltap
   watch` — dieselbe CLI-Form wie das Mac-`calltap`

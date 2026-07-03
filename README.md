@@ -110,9 +110,9 @@ app, for scripting or a Scheduled-Task-based setup.
 - The full watch-loop state machine ported line-for-line from the Mac's
   `calltap.swift` (`minSeconds`/`stopGraceSeconds`/`maxHours`, suppress-after-discard,
   abort-file discard protocol, orphaned-recording cleanup on startup)
-- The same Python processing pipeline: whisper.cpp/Groq transcription, sherpa-onnx
-  diarization, transcript merge, AI summary, Markdown note + MOC maintenance,
-  Nextcloud/Notion delivery
+- The same Python processing pipeline: **whisper.cpp / Parakeet TDT v3 / Groq**
+  transcription, sherpa-onnx diarization, transcript merge, AI summary, Markdown
+  note + MOC maintenance, Nextcloud/Notion delivery
 - `calltap procs [--watch]` / `calltap setup` / `calltap record` / `calltap watch`
   CLI, same shape as the Mac's `calltap`
 
