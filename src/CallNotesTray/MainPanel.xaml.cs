@@ -4,163 +4,173 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Windows;
 using System.Windows.Controls;
-using ComboBox = System.Windows.Controls.ComboBox;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Microsoft.Win32;
 using static CallNotesTray.L10n;
+using Brush = System.Windows.Media.Brush;
+using Rectangle = System.Windows.Shapes.Rectangle;
+using FontFamily = System.Windows.Media.FontFamily;
 
 namespace CallNotesTray;
 
 /// <summary>
-/// Das Panel-Fenster, das sich beim Klick auf das Tray-Icon oeffnet.
-/// Pollt alle 1s state/current-call.json + levels.json + state/pending/*.json,
-/// zeigt laufenden Anruf, Pegel, Teilnehmer-Eingabe, Sprecher-Zuordnungen,
-/// letzte Notizen, fehlgeschlagene Aufnahmen und ein minimales Settings-Panel.
+/// Das Panel-Fenster (Klick aufs Tray-Icon). An die macOS-Menueleisten-App
+/// (SettingsApp.swift) angelehnt: Header mit Status, laufender Anruf mit Wellenform-
+/// Pegeln + Teilnehmer-Zeilen, Sprecher-Zuordnungen, letzte Notizen, fehlgeschlagene
+/// Aufnahmen und eine vollstaendige Einstellungs-Sektion (alle config.json-Optionen).
 ///
-/// Alle Datei-I/O ist bewusst defensiv (try/catch, nie eine UnhandledException
-/// aus dem Poll-Tick heraus) — ein fehlendes/kaputtes State-File darf das Panel
-/// nie zum Absturz bringen, gleiche Haltung wie im Rest des Projekts.
+/// Alle Datei-I/O ist bewusst defensiv (try/catch) — ein fehlendes/kaputtes State-File
+/// darf das Panel nie zum Absturz bringen.
 /// </summary>
 public partial class MainPanel : Window
 {
     private readonly DispatcherTimer _pollTimer;
+    private readonly DispatcherTimer _waveTimer;
     private string? _activeCallDir;
     private DateTime? _activeCallStartUtc;
-    private bool _settingsExpanded = false;
+    private string? _participantsBuiltForDir;
+    private bool _settingsExpanded;
+    private bool _loading;
+
+    // Einstellungs-Zustand, der nicht direkt in einem Control lebt
+    private string _notesDir = "";
+    private string _audioDir = "";
+    private string _mirrorDir = "";
+    private bool _mirrorEnabled;
+
+    // Wellenform-Pegel (scrollende Historie)
+    private const int WaveBars = 40;
+    private Rectangle[] _micBars = System.Array.Empty<Rectangle>();
+    private Rectangle[] _sysBars = System.Array.Empty<Rectangle>();
+    private readonly double[] _micHist = new double[WaveBars];
+    private readonly double[] _sysHist = new double[WaveBars];
+    private double _lastMic, _lastSys;
+    private readonly System.Random _rand = new();
 
     public MainPanel()
     {
         InitializeComponent();
+        BuildWaveBars();
+        _loading = true;
+        LoadSettingsIntoUi();
+        _loading = false;
         ApplyLocalization();
         PositionNearTray();
-
-        LoadSettingsIntoUi();
         RefreshAll();
+
+        // Wie ein macOS-Menueleisten-Popover: bei Fokusverlust schliessen, Esc schliesst.
+        Deactivated += (_, _) => Close();
+        PreviewKeyDown += (_, e) => { if (e.Key == System.Windows.Input.Key.Escape) Close(); };
 
         _pollTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _pollTimer.Tick += (_, _) => RefreshAll();
         _pollTimer.Start();
 
-        Closed += (_, _) => _pollTimer.Stop();
+        _waveTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(90) };
+        _waveTimer.Tick += (_, _) => WaveTick();
+        _waveTimer.Start();
+
+        Closed += (_, _) => { _pollTimer.Stop(); _waveTimer.Stop(); };
     }
 
     private void PositionNearTray()
     {
-        // Unten rechts andocken, analog zur macOS-Menueleisten-Popover-Position.
         var workArea = SystemParameters.WorkArea;
-        Left = workArea.Right - Width - 12;
-        Top = workArea.Bottom - 40; // vorlaeufig, wird nach erstem Layout-Pass unten korrigiert
+        Left = workArea.Right - Width - 6;
+        Top = workArea.Bottom - 60;
         SizeChanged += (_, _) =>
         {
-            Top = Math.Max(workArea.Top + 12, workArea.Bottom - ActualHeight - 12);
+            Top = Math.Max(workArea.Top + 8, workArea.Bottom - ActualHeight - 6);
+            Left = workArea.Right - Width - 6;
         };
     }
 
-    // ---------------------------------------------------------------
+    // ============================================================
     // Lokalisierung
-    // ---------------------------------------------------------------
+    // ============================================================
 
     private void ApplyLocalization()
     {
         Title = "CallNotes";
-        ActiveCallTitle.Text = L("Aktiver Anruf", "Active call");
-        ParticipantsLabel.Text = L("Teilnehmer (Komma-getrennt)", "Participants (comma-separated)");
+        MicLabel.Text = L("Du", "You");
+        SysLabel.Text = L("Gegenseite", "Other side");
+        AddParticipantText.Text = L("weiterer Teilnehmer", "another participant");
         SaveParticipantsButton.Content = L("Speichern", "Save");
-        DiscardCallButton.Content = L("Diesen Anruf nicht aufnehmen", "Don't record this call");
-        NoActiveCallText.Text = L("Aktuell läuft kein Anruf.", "No call is currently being recorded.");
-        MicLabel.Text = L("Mikro", "Mic");
-        SysLabel.Text = L("System", "System");
-        PendingTitle.Text = L("Sprecher zuordnen", "Assign speakers");
-        RecentNotesTitle.Text = L("Letzte Notizen", "Recent notes");
+        DiscardCallText.Text = L("Diesen Anruf nicht aufnehmen", "Don't record this call");
+        RecentNotesTitle.Text = L("LETZTE ANRUFE", "RECENT CALLS");
         RecentNotesEmpty.Text = L("Noch keine Notizen.", "No notes yet.");
-        FailedTitle.Text = L("Fehlgeschlagene Aufnahmen", "Failed recordings");
+        FailedTitle.Text = L("FEHLGESCHLAGEN", "FAILED");
         SettingsTitle.Text = L("Einstellungen", "Settings");
-        OutDirLabel.Text = L("Datenordner", "Data folder");
-        NotesDirLabel.Text = L("Notizen-Ordner", "Notes folder");
-        LanguageLabel.Text = L("Sprache", "Language");
-        TranscriberLabel.Text = L("Transkription", "Transcription");
-        GroqKeyLabel.Text = L("Groq API-Key", "Groq API key");
-        SummarizerLabel.Text = L("Zusammenfassung", "Summarization");
-        SummarizerUrlLabel.Text = L("API-URL", "API URL");
-        SummarizerModelLabel.Text = L("Modell", "Model");
-        SummarizerApiKeyLabel.Text = L("API-Key", "API key");
-        SaveSettingsButton.Content = L("Einstellungen speichern", "Save settings");
 
-        foreach (ComboBoxItem item in LanguageCombo.Items)
-        {
-            item.Content = (string)item.Tag switch
-            {
-                "de" => "Deutsch",
-                "en" => "English",
-                _ => "System",
-            };
-        }
-        foreach (ComboBoxItem item in TranscriberCombo.Items)
-        {
-            item.Content = (string)item.Tag switch
-            {
-                "groq" => L("Groq (Cloud)", "Groq (cloud)"),
-                "parakeet" => "Parakeet",
-                _ => L("Lokal (whisper.cpp)", "Local (whisper.cpp)"),
-            };
-        }
-        foreach (ComboBoxItem item in SummarizerCombo.Items)
-        {
-            item.Content = (string)item.Tag switch
-            {
-                "openai" => L("OpenAI-kompatibel", "OpenAI-compatible"),
-                "off" => L("Aus", "Off"),
-                _ => "Claude",
-            };
-        }
+        LangHeader.Text = L("SPRACHE", "LANGUAGE");
+        StorageHeader.Text = L("SPEICHERORTE", "STORAGE");
+        NotesDirLabel.Text = L("Notizen", "Notes");
+        AudioDirLabel.Text = L("Audio-Archiv", "Audio archive");
+        MirrorDirLabel.Text = L("Kopie (extern)", "Copy (external)");
+        TranscriptionHeader.Text = L("TRANSKRIPTION", "TRANSCRIPTION");
+        GroqKeyLabel.Text = L("Groq API-Key", "Groq API key");
+        SummaryHeader.Text = L("KI-ZUSAMMENFASSUNG", "AI SUMMARY");
+        NoteContentHeader.Text = L("NOTIZ-INHALTE", "NOTE CONTENTS");
+        ChkKurzfassung.Content = L("Kurzfassung", "Summary");
+        ChkBesprochen.Content = L("Besprochen", "Discussed");
+        ChkTodos.Content = L("To-dos", "To-dos");
+        ChkFollowup.Content = L("Follow-up-Mail", "Follow-up email");
+        DestHeader.Text = L("ABLAGE ZUSÄTZLICH IN", "ALSO STORE IN");
+        PushHeader.Text = L("PUSH", "PUSH");
+        SyncNowButton.Content = L("Jetzt syncen", "Sync now");
+        SaveSettingsButton.Content = L("Speichern & Neustart", "Save & restart");
+        QuitButton.Content = L("Beenden", "Quit");
+
+        foreach (var seg in new[] { LangSystem, LangDe, LangEn })
+            seg.Content = (string)seg.Tag switch { "de" => L("Deutsch", "German"), "en" => "English", _ => L("System", "System") };
+        TransLocal.Content = L("Lokal (Whisper)", "Local (Whisper)");
+        TransGroq.Content = L("Groq (Cloud)", "Groq (cloud)");
+        SumClaude.Content = L("Claude Code", "Claude Code");
+        SumOpenAI.Content = L("Eigene KI", "Own AI");
+        SumOff.Content = L("Aus", "Off");
     }
 
-    // ---------------------------------------------------------------
+    // ============================================================
     // Zentraler Poll-Tick
-    // ---------------------------------------------------------------
+    // ============================================================
 
     private void RefreshAll()
     {
-        RefreshDaemonStatus();
+        RefreshHeaderStatus();
         RefreshActiveCall();
         RefreshPending();
         RefreshRecentNotes();
         RefreshFailed();
     }
 
-    private void RefreshDaemonStatus()
+    private void RefreshHeaderStatus()
     {
         bool running = IsWatchDaemonRunning();
-        DaemonStatusDot.Fill = running
-            ? (SolidColorBrush)FindResource("BrushSuccess")
-            : (SolidColorBrush)FindResource("BrushDanger");
-        DaemonStatusText.Text = running
-            ? L("Läuft", "Running")
-            : L("Gestoppt", "Stopped");
+        bool processing = File.Exists(Path.Combine(Paths.StateDir, "processing.json"));
+        bool recording = File.Exists(Path.Combine(Paths.StateDir, "current-call.json"));
+
+        SolidColorBrush dot;
+        string subtitle;
+        if (processing) { dot = Brush("BrushPurple"); subtitle = L("verarbeitet Anruf…", "processing call…"); }
+        else if (recording) { dot = Brush("BrushAccent"); subtitle = L("Aufnahme läuft", "recording"); }
+        else if (running) { dot = Brush("BrushSuccess"); subtitle = L("Anruf-Autopilot bereit", "Call autopilot ready"); }
+        else { dot = Brush("BrushTextTertiary"); subtitle = L("Daemon gestoppt", "Daemon stopped"); }
+
+        DaemonStatusDot.Fill = dot;
+        HeaderSubtitle.Text = subtitle;
+        HeaderSubtitle.Foreground = recording ? Brush("BrushAccent") : (processing ? Brush("BrushPurple") : Brush("BrushPurple"));
     }
 
-    /// <summary>
-    /// Der Watch-Daemon ist entweder der eingebettete In-Process-Task (CallTap.Core,
-    /// sobald angebunden) oder ein separat laufender "calltap.exe watch"-Prozess
-    /// (headless/Scheduled-Task-Betrieb, siehe Contract Abschnitt 5). Fuer die reine
-    /// Statusanzeige reicht ein Prozess-Check nach Namen.
-    /// </summary>
     private static bool IsWatchDaemonRunning()
     {
-        try
-        {
-            return Process.GetProcessesByName("calltap").Length > 0;
-        }
-        catch
-        {
-            return false;
-        }
+        try { return Process.GetProcessesByName("calltap").Length > 0; }
+        catch { return false; }
     }
 
-    // ---------------------------------------------------------------
-    // Aktiver Anruf: current-call.json + levels.json
-    // ---------------------------------------------------------------
+    // ============================================================
+    // Aktiver Anruf
+    // ============================================================
 
     private void RefreshActiveCall()
     {
@@ -171,22 +181,18 @@ public partial class MainPanel : Window
         {
             _activeCallDir = null;
             _activeCallStartUtc = null;
+            _participantsBuiltForDir = null;
+            _lastMic = _lastSys = 0;
             ActiveCallCard.Visibility = Visibility.Collapsed;
-            NoActiveCallCard.Visibility = Visibility.Visible;
             return;
         }
 
         ActiveCallCard.Visibility = Visibility.Visible;
-        NoActiveCallCard.Visibility = Visibility.Collapsed;
-
         _activeCallDir = call["dir"]?.GetValue<string>();
-        string appName = call["appName"]?.GetValue<string>() ?? call["app"]?.GetValue<string>() ?? "?";
-        ActiveCallApp.Text = appName;
+        ActiveCallApp.Text = call["appName"]?.GetValue<string>() ?? call["app"]?.GetValue<string>() ?? "?";
 
         if (DateTime.TryParse(call["start"]?.GetValue<string>(), out var start))
-        {
             _activeCallStartUtc = start.ToUniversalTime();
-        }
 
         if (_activeCallStartUtc.HasValue)
         {
@@ -197,173 +203,210 @@ public partial class MainPanel : Window
                 : $"{elapsed.Minutes:00}:{elapsed.Seconds:00}";
         }
 
-        // Aktuelle Teilnehmer aus participants.json vorbefuellen, falls schon
-        // welche fuer diesen Anruf hinterlegt sind (z.B. nach Neuoeffnen des Panels).
-        if (!string.IsNullOrEmpty(_activeCallDir) && !ParticipantsInput.IsFocused)
+        // Teilnehmer-Zeilen nur bei neuem Anruf (neu-)aufbauen, um Tipperei nicht zu ueberschreiben.
+        if (_activeCallDir != _participantsBuiltForDir)
         {
-            string participantsFile = Path.Combine(_activeCallDir, "participants.json");
-            var participants = TryReadJsonArray(participantsFile);
-            if (participants != null)
-            {
-                var names = participants.Select(n => n?.GetValue<string>() ?? "").Where(s => s.Length > 0);
-                ParticipantsInput.Text = string.Join(", ", names);
-            }
+            _participantsBuiltForDir = _activeCallDir;
+            RebuildParticipantRows();
         }
 
-        // Pegel-Balken aus levels.json (siehe Contract 3.5: {"mic":0.42,"sys":0.18,"t":...}).
+        // aktuelle Pegel fuer die Wellenform
         if (!string.IsNullOrEmpty(_activeCallDir))
         {
-            string levelsFile = Path.Combine(_activeCallDir, "levels.json");
-            var levels = TryReadJsonObject(levelsFile);
-            double mic = ClampLevel(levels?["mic"]?.GetValue<double>() ?? 0);
-            double sys = ClampLevel(levels?["sys"]?.GetValue<double>() ?? 0);
-            UpdateLevelBar(MicLevelBar, mic);
-            UpdateLevelBar(SysLevelBar, sys);
-        }
-        else
-        {
-            UpdateLevelBar(MicLevelBar, 0);
-            UpdateLevelBar(SysLevelBar, 0);
+            var levels = TryReadJsonObject(Path.Combine(_activeCallDir, "levels.json"));
+            _lastMic = ClampLevel(levels?["mic"]?.GetValue<double>() ?? 0);
+            _lastSys = ClampLevel(levels?["sys"]?.GetValue<double>() ?? 0);
         }
     }
 
     private static double ClampLevel(double v) => Math.Max(0, Math.Min(1, v));
 
-    private void UpdateLevelBar(FrameworkElement bar, double level)
+    // ---- Wellenform ----
+
+    private void BuildWaveBars()
     {
-        // Track-Breite = Elternspalte; Pegel-Balken wird proportional skaliert.
-        if (bar.Parent is Border track)
+        _micBars = new Rectangle[WaveBars];
+        _sysBars = new Rectangle[WaveBars];
+        for (int i = 0; i < WaveBars; i++)
         {
-            double trackWidth = track.ActualWidth > 0 ? track.ActualWidth : 260;
-            bar.Width = trackWidth * level;
+            _micBars[i] = MakeBar(Brush("BrushLevelMic"));
+            _sysBars[i] = MakeBar(Brush("BrushLevelSys"));
+            MicWavePanel.Children.Add(_micBars[i]);
+            SysWavePanel.Children.Add(_sysBars[i]);
         }
     }
 
+    private static Rectangle MakeBar(Brush fill) => new()
+    {
+        Width = 3.5,
+        Height = 2,
+        RadiusX = 1.75,
+        RadiusY = 1.75,
+        Fill = fill,
+        Margin = new Thickness(1.25, 0, 1.25, 0),
+        VerticalAlignment = VerticalAlignment.Center,
+    };
+
+    private void WaveTick()
+    {
+        if (ActiveCallCard.Visibility != Visibility.Visible) { _lastMic = _lastSys = 0; }
+
+        System.Array.Copy(_micHist, 1, _micHist, 0, WaveBars - 1);
+        System.Array.Copy(_sysHist, 1, _sysHist, 0, WaveBars - 1);
+        _micHist[WaveBars - 1] = _lastMic > 0.02 ? Math.Min(1, _lastMic * (0.7 + _rand.NextDouble() * 0.6)) : 0;
+        _sysHist[WaveBars - 1] = _lastSys > 0.02 ? Math.Min(1, _lastSys * (0.7 + _rand.NextDouble() * 0.6)) : 0;
+
+        const double maxH = 26;
+        for (int i = 0; i < WaveBars; i++)
+        {
+            _micBars[i].Height = Math.Max(2, _micHist[i] * maxH);
+            _sysBars[i].Height = Math.Max(2, _sysHist[i] * maxH);
+        }
+    }
+
+    // ---- Teilnehmer ----
+
+    private void RebuildParticipantRows()
+    {
+        ParticipantsPanel.Children.Clear();
+        var names = new List<string>();
+        if (!string.IsNullOrEmpty(_activeCallDir))
+        {
+            var arr = TryReadJsonArray(Path.Combine(_activeCallDir, "participants.json"));
+            if (arr != null)
+                names = arr.Select(n => n?.GetValue<string>() ?? "").Where(s => s.Length > 0).ToList();
+        }
+        if (names.Count == 0) names.Add("");
+        foreach (var n in names) AddParticipantRow(n);
+    }
+
+    private void AddParticipantRow(string name)
+    {
+        var row = new Grid { Margin = new Thickness(0, 0, 0, 7) };
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var glyph = new TextBlock
+        {
+            Text = "",
+            FontFamily = new FontFamily("Segoe MDL2 Assets"),
+            FontSize = 13,
+            Foreground = Brush("BrushTextSecondary"),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 8, 0),
+        };
+        Grid.SetColumn(glyph, 0);
+
+        var box = new TextBox { Text = name, Margin = new Thickness(0, 0, 8, 0) };
+        Grid.SetColumn(box, 1);
+
+        var remove = new Button
+        {
+            Style = (Style)FindResource("RoundIconButton"),
+            Content = new TextBlock { Text = "", FontFamily = new FontFamily("Segoe MDL2 Assets"), FontSize = 12 },
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        remove.Click += (_, _) =>
+        {
+            ParticipantsPanel.Children.Remove(row);
+            if (ParticipantsPanel.Children.Count == 0) AddParticipantRow("");
+        };
+        Grid.SetColumn(remove, 2);
+
+        row.Children.Add(glyph);
+        row.Children.Add(box);
+        row.Children.Add(remove);
+        ParticipantsPanel.Children.Add(row);
+    }
+
+    private void AddParticipantButton_Click(object sender, RoutedEventArgs e) => AddParticipantRow("");
+
     private void SaveParticipantsButton_Click(object sender, RoutedEventArgs e)
     {
-        if (string.IsNullOrEmpty(_activeCallDir))
-        {
-            return;
-        }
-
-        var names = (ParticipantsInput.Text ?? "")
-            .Split(',')
-            .Select(s => s.Trim())
-            .Where(s => s.Length > 0)
-            .ToArray();
+        if (string.IsNullOrEmpty(_activeCallDir)) return;
 
         var array = new JsonArray();
-        foreach (var name in names) array.Add(JsonValue.Create(name));
-
-        string path = Path.Combine(_activeCallDir, "participants.json");
-        WriteJsonAtomic(path, array);
-
-        SettingsSavedHint.Text = L("Teilnehmer gespeichert.", "Participants saved.");
-        SettingsSavedHint.Visibility = Visibility.Visible;
+        foreach (var child in ParticipantsPanel.Children)
+        {
+            if (child is Grid g)
+            {
+                var box = g.Children.OfType<TextBox>().FirstOrDefault();
+                var name = (box?.Text ?? "").Trim();
+                if (name.Length > 0) array.Add(JsonValue.Create(name));
+            }
+        }
+        WriteJsonAtomic(Path.Combine(_activeCallDir, "participants.json"), array);
+        FlashHint(L("Teilnehmer gespeichert.", "Participants saved."));
     }
 
     private void DiscardCallButton_Click(object sender, RoutedEventArgs e)
     {
         if (string.IsNullOrEmpty(_activeCallDir)) return;
-
         var result = System.Windows.MessageBox.Show(
             L("Diesen Anruf wirklich verwerfen? Es wird nichts gespeichert.",
               "Really discard this call? Nothing will be saved."),
-            L("Anruf verwerfen", "Discard call"),
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Warning);
-
+            L("Anruf verwerfen", "Discard call"), MessageBoxButton.YesNo, MessageBoxImage.Warning);
         if (result != MessageBoxResult.Yes) return;
-
         try
         {
-            // Abort-Datei-Protokoll laut Contract 6.7: der naechste Poll-Tick des
-            // Watchers sieht die Datei, stoppt beide Capture-Threads und loescht
-            // das Aufnahmeverzeichnis komplett — hier wird NICHT selbst geloescht,
-            // um keine Race Condition mit dem laufenden Capture-Thread zu riskieren.
-            string abortFile = Path.Combine(_activeCallDir, "abort");
-            File.WriteAllText(abortFile, DateTime.UtcNow.ToString("O"));
+            File.WriteAllText(Path.Combine(_activeCallDir, "abort"), DateTime.UtcNow.ToString("O"));
         }
         catch
         {
-            System.Windows.MessageBox.Show(
-                L("Konnte Abbruch nicht auslösen.", "Could not trigger abort."),
+            System.Windows.MessageBox.Show(L("Konnte Abbruch nicht auslösen.", "Could not trigger abort."),
                 "CallNotes", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
-    // ---------------------------------------------------------------
-    // Ausstehende Sprecher-Zuordnungen: state/pending/*.json
-    // ---------------------------------------------------------------
+    // ============================================================
+    // Sprecher-Zuordnungen (state/pending/*.json)
+    // ============================================================
 
     private void RefreshPending()
     {
         PendingList.Children.Clear();
-
         List<string> files;
         try
         {
-            if (!Directory.Exists(Paths.PendingDir))
-            {
-                PendingSection.Visibility = Visibility.Collapsed;
-                return;
-            }
+            if (!Directory.Exists(Paths.PendingDir)) { PendingSection.Visibility = Visibility.Collapsed; return; }
             files = Directory.GetFiles(Paths.PendingDir, "*.json").OrderByDescending(f => f).ToList();
         }
-        catch
-        {
-            PendingSection.Visibility = Visibility.Collapsed;
-            return;
-        }
+        catch { PendingSection.Visibility = Visibility.Collapsed; return; }
 
-        if (files.Count == 0)
-        {
-            PendingSection.Visibility = Visibility.Collapsed;
-            return;
-        }
-
+        if (files.Count == 0) { PendingSection.Visibility = Visibility.Collapsed; return; }
         PendingSection.Visibility = Visibility.Visible;
 
         foreach (var file in files)
         {
             var obj = TryReadJsonObject(file);
             if (obj == null) continue;
-
             var card = BuildPendingCard(file, obj);
             if (card != null) PendingList.Children.Add(card);
         }
     }
 
-    /// <summary>
-    /// Baut eine Karte pro pending-Datei: pro Sprecher ein Dropdown (bestehende
-    /// participants als Vorschlaege + suggestion vorausgewaehlt) + "Übernehmen"-
-    /// Button, der pipeline/apply_speakers.py aufruft (Contract: Windows-Analogon
-    /// von apply-speakers.sh).
-    /// </summary>
-    private Border? BuildPendingCard(string file, JsonObject obj)
+    private FrameworkElement? BuildPendingCard(string file, JsonObject obj)
     {
         string stamp = obj["stamp"]?.GetValue<string>() ?? Path.GetFileNameWithoutExtension(file);
         string app = obj["app"]?.GetValue<string>() ?? "";
         var speakersNode = obj["speakers"] as JsonArray;
-        var participantsNode = obj["participants"] as JsonArray;
-        var participantOptions = participantsNode?
-            .Select(n => n?.GetValue<string>() ?? "")
-            .Where(s => s.Length > 0)
-            .ToList() ?? new List<string>();
-
+        var participantOptions = (obj["participants"] as JsonArray)?
+            .Select(n => n?.GetValue<string>() ?? "").Where(s => s.Length > 0).ToList() ?? new List<string>();
         if (speakersNode == null || speakersNode.Count == 0) return null;
 
-        var outer = new StackPanel { Margin = new Thickness(0, 0, 0, 12) };
+        var outer = new StackPanel();
 
-        outer.Children.Add(new TextBlock
+        var head = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 10) };
+        head.Children.Add(new TextBlock { Text = "", FontFamily = new FontFamily("Segoe MDL2 Assets"), FontSize = 13, Foreground = Brush("BrushTextSecondary"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) });
+        head.Children.Add(new TextBlock
         {
-            Text = string.IsNullOrEmpty(app) ? stamp : $"{stamp} ({app})",
-            FontWeight = FontWeights.SemiBold,
-            Margin = new Thickness(0, 0, 0, 6),
+            Text = $"{speakersNode.Count} {L("Stimmen", "voices")} · {(string.IsNullOrEmpty(app) ? "" : app + " · ")}{stamp}",
+            Foreground = Brush("BrushTextSecondary"), FontSize = 12, VerticalAlignment = VerticalAlignment.Center,
         });
+        outer.Children.Add(head);
 
         var speakerCombos = new List<(string label, ComboBox combo)>();
-
         foreach (var speakerNode in speakersNode)
         {
             if (speakerNode is not JsonObject speaker) continue;
@@ -371,237 +414,145 @@ public partial class MainPanel : Window
             string clip = speaker["clip"]?.GetValue<string>() ?? "";
             string suggestion = speaker["suggestion"]?.GetValue<string>() ?? "";
 
-            var row = new Grid { Margin = new Thickness(0, 0, 0, 6) };
-            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(90) });
-            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            var r = new Grid { Margin = new Thickness(0, 0, 0, 8) };
+            r.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            r.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(88) });
+            r.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-            var labelBlock = new TextBlock
-            {
-                Text = label,
-                VerticalAlignment = VerticalAlignment.Center,
-                Foreground = (SolidColorBrush)FindResource("BrushTextSecondary"),
-                FontSize = 12,
-            };
-            Grid.SetColumn(labelBlock, 0);
+            var play = new Button { Style = (Style)FindResource("CirclePlayButton"), Tag = clip, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 0) };
+            play.Click += (_, _) => PlayClip(clip);
+            Grid.SetColumn(play, 0);
 
-            var combo = new ComboBox { IsEditable = true, Margin = new Thickness(0, 0, 6, 0) };
+            var lbl = new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center, Foreground = Brush("BrushTextPrimary"), FontSize = 12.5 };
+            Grid.SetColumn(lbl, 1);
+
+            var combo = new ComboBox { IsEditable = true, Text = suggestion, VerticalAlignment = VerticalAlignment.Center };
             foreach (var name in participantOptions) combo.Items.Add(name);
-            combo.Text = suggestion;
-            Grid.SetColumn(combo, 1);
+            Grid.SetColumn(combo, 2);
 
-            var playButton = new Button
-            {
-                Content = "▶",
-                Style = (Style)FindResource("PillButton"),
-                Tag = clip,
-            };
-            playButton.Click += (_, _) => PlayClip(clip);
-            Grid.SetColumn(playButton, 2);
-
-            row.Children.Add(labelBlock);
-            row.Children.Add(combo);
-            row.Children.Add(playButton);
-            outer.Children.Add(row);
-
+            r.Children.Add(play); r.Children.Add(lbl); r.Children.Add(combo);
+            outer.Children.Add(r);
             speakerCombos.Add((label, combo));
         }
 
-        var applyButton = new Button
-        {
-            Content = L("Übernehmen", "Apply"),
-            Style = (Style)FindResource("AccentButton"),
-            HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch,
-            Margin = new Thickness(0, 4, 0, 0),
-        };
-        applyButton.Click += (_, _) => ApplyPendingSpeakers(file, stamp, speakerCombos);
-        outer.Children.Add(applyButton);
+        var actions = new DockPanel { Margin = new Thickness(0, 4, 0, 0) };
+        var viewNote = new Button { Content = L("Notiz ansehen", "View note"), Style = (Style)FindResource("LinkButton"), HorizontalAlignment = System.Windows.HorizontalAlignment.Left };
+        string notePath = obj["note"]?.GetValue<string>() ?? "";
+        viewNote.Click += (_, _) => OpenNote(notePath);
+        DockPanel.SetDock(viewNote, Dock.Left);
+        var apply = new Button { Content = L("Zuordnung übernehmen", "Apply assignment"), Style = (Style)FindResource("PrimaryButton"), HorizontalAlignment = System.Windows.HorizontalAlignment.Right };
+        apply.Click += (_, _) => ApplyPendingSpeakers(file, stamp, speakerCombos);
+        actions.Children.Add(viewNote); actions.Children.Add(apply);
+        outer.Children.Add(actions);
 
-        return new Border
-        {
-            Background = (SolidColorBrush)FindResource("BrushCardBg"),
-            CornerRadius = new CornerRadius(8),
-            Padding = new Thickness(10),
-            Child = outer,
-        };
+        return new Border { Child = outer };
     }
 
     private void PlayClip(string clipPath)
     {
         if (string.IsNullOrEmpty(clipPath) || !File.Exists(clipPath)) return;
-        try
-        {
-            Process.Start(new ProcessStartInfo(clipPath) { UseShellExecute = true });
-        }
-        catch
-        {
-            // Kein registrierter Player fuer .m4a o.ae. -> stumm ignorieren,
-            // der Nutzer sieht ohnehin die Dropdown-Vorbelegung als Vorschlag.
-        }
+        try { Process.Start(new ProcessStartInfo(clipPath) { UseShellExecute = true }); } catch { }
     }
 
-    /// <summary>
-    /// Ruft "python pipeline/apply_speakers.py &lt;pending-file&gt; &lt;zuordnungen-json&gt;"
-    /// auf (venvPython aus config.json, Fallback "python"). Bei Erfolg wird die
-    /// pending-Datei entfernt (macht regulaer bereits das Python-Skript selbst,
-    /// hier zusaetzlich als Sicherheitsnetz falls das Skript das nicht tut).
-    /// </summary>
     private void ApplyPendingSpeakers(string pendingFile, string stamp, List<(string label, ComboBox combo)> combos)
     {
         var assignment = new JsonObject();
         foreach (var (label, combo) in combos)
-        {
-            string name = (combo.Text ?? "").Trim();
-            assignment[label] = JsonValue.Create(name);
-        }
+            assignment[label] = JsonValue.Create((combo.Text ?? "").Trim());
 
         string tempAssignmentFile = Path.Combine(Path.GetTempPath(), $"callnotes-speakers-{stamp}.json");
         try
         {
             File.WriteAllText(tempAssignmentFile, assignment.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
-
-            string pythonExe = ResolveVenvPython();
-            string pipelineScript = ResolvePipelineScript("apply_speakers.py");
-
             var psi = new ProcessStartInfo
             {
-                FileName = pythonExe,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
+                FileName = ResolveVenvPython(),
+                UseShellExecute = false, CreateNoWindow = true,
+                RedirectStandardOutput = true, RedirectStandardError = true,
             };
-            psi.ArgumentList.Add(pipelineScript);
+            psi.ArgumentList.Add(ResolvePipelineScript("apply_speakers.py"));
             psi.ArgumentList.Add(pendingFile);
             psi.ArgumentList.Add(tempAssignmentFile);
-
             using var proc = Process.Start(psi);
             proc?.WaitForExit(15000);
-
-            if (proc != null && proc.ExitCode == 0)
-            {
-                TryDeleteFile(pendingFile);
-            }
+            if (proc != null && proc.ExitCode == 0) TryDeleteFile(pendingFile);
             else
             {
                 string stderr = proc?.StandardError.ReadToEnd() ?? "";
-                System.Windows.MessageBox.Show(
-                    L($"Sprecher-Zuordnung fehlgeschlagen:\n{stderr}", $"Speaker assignment failed:\n{stderr}"),
+                System.Windows.MessageBox.Show(L($"Sprecher-Zuordnung fehlgeschlagen:\n{stderr}", $"Speaker assignment failed:\n{stderr}"),
                     "CallNotes", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
         catch (Exception ex)
         {
-            System.Windows.MessageBox.Show(
-                L($"Konnte apply_speakers.py nicht starten: {ex.Message}", $"Could not start apply_speakers.py: {ex.Message}"),
+            System.Windows.MessageBox.Show(L($"Konnte apply_speakers.py nicht starten: {ex.Message}", $"Could not start apply_speakers.py: {ex.Message}"),
                 "CallNotes", MessageBoxButton.OK, MessageBoxImage.Error);
         }
-        finally
-        {
-            TryDeleteFile(tempAssignmentFile);
-            RefreshPending();
-        }
+        finally { TryDeleteFile(tempAssignmentFile); RefreshPending(); }
     }
 
-    private static void TryDeleteFile(string path)
-    {
-        try { if (File.Exists(path)) File.Delete(path); } catch { /* best effort */ }
-    }
+    private static void TryDeleteFile(string path) { try { if (File.Exists(path)) File.Delete(path); } catch { } }
 
-    // ---------------------------------------------------------------
+    // ============================================================
     // Letzte Notizen
-    // ---------------------------------------------------------------
+    // ============================================================
 
     private void RefreshRecentNotes()
     {
         RecentNotesList.Children.Clear();
-
         List<string> notes;
         try
         {
-            string notesDir = Paths.NotesDir;
-            if (!Directory.Exists(notesDir))
-            {
-                RecentNotesEmpty.Visibility = Visibility.Visible;
-                return;
-            }
-            notes = Directory.GetFiles(notesDir, "*.md")
-                .OrderByDescending(File.GetLastWriteTimeUtc)
-                .Take(5)
-                .ToList();
+            if (!Directory.Exists(Paths.NotesDir)) { RecentNotesEmpty.Visibility = Visibility.Visible; return; }
+            notes = Directory.GetFiles(Paths.NotesDir, "*.md").OrderByDescending(File.GetLastWriteTimeUtc).Take(5).ToList();
         }
-        catch
-        {
-            RecentNotesEmpty.Visibility = Visibility.Visible;
-            return;
-        }
+        catch { RecentNotesEmpty.Visibility = Visibility.Visible; return; }
 
-        if (notes.Count == 0)
-        {
-            RecentNotesEmpty.Visibility = Visibility.Visible;
-            return;
-        }
-
+        if (notes.Count == 0) { RecentNotesEmpty.Visibility = Visibility.Visible; return; }
         RecentNotesEmpty.Visibility = Visibility.Collapsed;
 
         foreach (var note in notes)
         {
-            var link = new TextBlock
-            {
-                Text = Path.GetFileNameWithoutExtension(note),
-                Foreground = (SolidColorBrush)FindResource("BrushAccent"),
-                Cursor = System.Windows.Input.Cursors.Hand,
-                TextDecorations = TextDecorations.Underline,
-                Margin = new Thickness(0, 0, 0, 4),
-                TextWrapping = TextWrapping.Wrap,
-            };
-            link.MouseLeftButtonUp += (_, _) => OpenNote(note);
-            RecentNotesList.Children.Add(link);
+            var row = new Grid { Margin = new Thickness(0, 3, 0, 3), Cursor = System.Windows.Input.Cursors.Hand };
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            var icon = new TextBlock { Text = "", FontFamily = new FontFamily("Segoe MDL2 Assets"), FontSize = 13, Foreground = Brush("BrushAccent"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
+            Grid.SetColumn(icon, 0);
+            var name = new TextBlock { Text = Path.GetFileNameWithoutExtension(note), Foreground = Brush("BrushTextPrimary"), FontSize = 12, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
+            Grid.SetColumn(name, 1);
+            var arrow = new TextBlock { Text = "", FontFamily = new FontFamily("Segoe MDL2 Assets"), FontSize = 11, Foreground = Brush("BrushTextTertiary"), VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0) };
+            Grid.SetColumn(arrow, 2);
+
+            row.Children.Add(icon); row.Children.Add(name); row.Children.Add(arrow);
+            row.MouseLeftButtonUp += (_, _) => OpenNote(note);
+            RecentNotesList.Children.Add(row);
         }
     }
 
     private static void OpenNote(string path)
     {
-        try
-        {
-            Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
-        }
-        catch
-        {
-            // Keine mit .md verknuepfte App -> stumm ignorieren.
-        }
+        if (string.IsNullOrEmpty(path)) return;
+        try { Process.Start(new ProcessStartInfo(path) { UseShellExecute = true }); } catch { }
     }
 
-    // ---------------------------------------------------------------
+    // ============================================================
     // Fehlgeschlagene Aufnahmen
-    // ---------------------------------------------------------------
+    // ============================================================
 
     private void RefreshFailed()
     {
         FailedList.Children.Clear();
-
         List<string> dirs;
         try
         {
-            if (!Directory.Exists(Paths.FailedDir))
-            {
-                FailedSection.Visibility = Visibility.Collapsed;
-                return;
-            }
+            if (!Directory.Exists(Paths.FailedDir)) { FailedSection.Visibility = Visibility.Collapsed; return; }
             dirs = Directory.GetDirectories(Paths.FailedDir).OrderByDescending(d => d).ToList();
         }
-        catch
-        {
-            FailedSection.Visibility = Visibility.Collapsed;
-            return;
-        }
+        catch { FailedSection.Visibility = Visibility.Collapsed; return; }
 
-        if (dirs.Count == 0)
-        {
-            FailedSection.Visibility = Visibility.Collapsed;
-            return;
-        }
-
+        if (dirs.Count == 0) { FailedSection.Visibility = Visibility.Collapsed; return; }
         FailedSection.Visibility = Visibility.Visible;
 
         foreach (var dir in dirs)
@@ -611,26 +562,16 @@ public partial class MainPanel : Window
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-            var nameBlock = new TextBlock
-            {
-                Text = Path.GetFileName(dir),
-                VerticalAlignment = VerticalAlignment.Center,
-                TextTrimming = TextTrimming.CharacterEllipsis,
-                Margin = new Thickness(0, 0, 6, 0),
-            };
+            var nameBlock = new TextBlock { Text = Path.GetFileName(dir), VerticalAlignment = VerticalAlignment.Center, FontSize = 12, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 0, 6, 0) };
             Grid.SetColumn(nameBlock, 0);
+            var retry = new Button { Content = L("Erneut", "Retry"), Style = (Style)FindResource("ChooseButton"), Margin = new Thickness(0, 0, 6, 0) };
+            retry.Click += (_, _) => RetryFailed(dir);
+            Grid.SetColumn(retry, 1);
+            var discard = new Button { Content = L("Verwerfen", "Discard"), Style = (Style)FindResource("ChooseButton") };
+            discard.Click += (_, _) => DiscardFailed(dir);
+            Grid.SetColumn(discard, 2);
 
-            var retryButton = new Button { Content = L("Erneut versuchen", "Retry"), Style = (Style)FindResource("PillButton"), Margin = new Thickness(0, 0, 6, 0) };
-            retryButton.Click += (_, _) => RetryFailed(dir);
-            Grid.SetColumn(retryButton, 1);
-
-            var discardButton = new Button { Content = L("Verwerfen", "Discard"), Style = (Style)FindResource("DangerButton") };
-            discardButton.Click += (_, _) => DiscardFailed(dir);
-            Grid.SetColumn(discardButton, 2);
-
-            row.Children.Add(nameBlock);
-            row.Children.Add(retryButton);
-            row.Children.Add(discardButton);
+            row.Children.Add(nameBlock); row.Children.Add(retry); row.Children.Add(discard);
             FailedList.Children.Add(row);
         }
     }
@@ -639,29 +580,17 @@ public partial class MainPanel : Window
     {
         try
         {
-            string pythonExe = ResolveVenvPython();
-            string pipelineScript = ResolvePipelineScript("process_call.py");
-
-            var psi = new ProcessStartInfo
-            {
-                FileName = pythonExe,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-            };
-            psi.ArgumentList.Add(pipelineScript);
+            var psi = new ProcessStartInfo { FileName = ResolveVenvPython(), UseShellExecute = false, CreateNoWindow = true };
+            psi.ArgumentList.Add(ResolvePipelineScript("process_call.py"));
             psi.ArgumentList.Add(dir);
             Process.Start(psi);
         }
         catch (Exception ex)
         {
-            System.Windows.MessageBox.Show(
-                L($"Konnte Verarbeitung nicht neu starten: {ex.Message}", $"Could not restart processing: {ex.Message}"),
+            System.Windows.MessageBox.Show(L($"Konnte Verarbeitung nicht neu starten: {ex.Message}", $"Could not restart processing: {ex.Message}"),
                 "CallNotes", MessageBoxButton.OK, MessageBoxImage.Error);
         }
-        finally
-        {
-            RefreshFailed();
-        }
+        finally { RefreshFailed(); }
     }
 
     private void DiscardFailed(string dir)
@@ -670,115 +599,252 @@ public partial class MainPanel : Window
             L("Diese fehlgeschlagene Aufnahme endgültig löschen?", "Permanently delete this failed recording?"),
             "CallNotes", MessageBoxButton.YesNo, MessageBoxImage.Warning);
         if (result != MessageBoxResult.Yes) return;
-
-        try
-        {
-            Directory.Delete(dir, recursive: true);
-        }
+        try { Directory.Delete(dir, recursive: true); }
         catch (Exception ex)
         {
-            System.Windows.MessageBox.Show(
-                L($"Löschen fehlgeschlagen: {ex.Message}", $"Deletion failed: {ex.Message}"),
+            System.Windows.MessageBox.Show(L($"Löschen fehlgeschlagen: {ex.Message}", $"Deletion failed: {ex.Message}"),
                 "CallNotes", MessageBoxButton.OK, MessageBoxImage.Error);
         }
-        finally
-        {
-            RefreshFailed();
-        }
+        finally { RefreshFailed(); }
     }
 
-    // ---------------------------------------------------------------
-    // Settings (minimal): Speicherorte, Sprache, Transcriber, Summarizer
-    // ---------------------------------------------------------------
+    // ============================================================
+    // Einstellungen: Laden / Speichern
+    // ============================================================
 
-    private void SettingsToggle_MouseLeftButtonUp(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    private void SettingsToggle_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
     {
         _settingsExpanded = !_settingsExpanded;
         SettingsBody.Visibility = _settingsExpanded ? Visibility.Visible : Visibility.Collapsed;
-        SettingsToggle.Text = _settingsExpanded ? "▴" : "▾";
+        SettingsChevron.Text = _settingsExpanded ? "" : ""; // ChevronDown / ChevronRight
     }
 
     private void LoadSettingsIntoUi()
     {
-        var config = TryReadJsonObject(Paths.ConfigFile) ?? new JsonObject();
+        var c = TryReadJsonObject(Paths.ConfigFile) ?? new JsonObject();
 
-        OutDirInput.Text = config["outDir"]?.GetValue<string>() ?? Paths.DataRoot;
-        NotesDirInput.Text = config["notesDir"]?.GetValue<string>() ?? Paths.NotesDir;
+        _notesDir = c["notesDir"]?.GetValue<string>() ?? Paths.NotesDir;
+        _audioDir = c["audioDir"]?.GetValue<string>() ?? Path.Combine(Paths.DataRoot, "audio");
+        _mirrorDir = c["mirrorDir"]?.GetValue<string>() ?? "";
+        _mirrorEnabled = !string.IsNullOrWhiteSpace(_mirrorDir);
+        NotesDirValue.Text = _notesDir;
+        AudioDirValue.Text = _audioDir;
+        UpdateMirrorUi();
 
-        SelectComboByTag(LanguageCombo, config["uiLanguage"]?.GetValue<string>() ?? "system");
-        SelectComboByTag(TranscriberCombo, config["transcriber"]?.GetValue<string>() ?? "local");
-        SelectComboByTag(SummarizerCombo, config["summarizer"]?.GetValue<string>() ?? "claude");
+        SetSegment("lang", c["uiLanguage"]?.GetValue<string>() ?? "system");
+        SetSegment("trans", c["transcriber"]?.GetValue<string>() ?? "local");
+        SetSegment("sum", c["summarizer"]?.GetValue<string>() ?? "claude");
 
-        GroqKeyInput.Text = config["groqApiKey"]?.GetValue<string>() ?? "";
-        SummarizerUrlInput.Text = config["summarizerUrl"]?.GetValue<string>() ?? "";
-        SummarizerModelInput.Text = config["summarizerModel"]?.GetValue<string>() ?? "";
-        SummarizerApiKeyInput.Text = config["summarizerApiKey"]?.GetValue<string>() ?? "";
+        GroqKeyInput.Text = c["groqApiKey"]?.GetValue<string>() ?? "";
+        SummarizerUrlInput.Text = c["summarizerUrl"]?.GetValue<string>() ?? "";
+        SummarizerModelInput.Text = c["summarizerModel"]?.GetValue<string>() ?? "";
+        SummarizerApiKeyInput.Text = c["summarizerApiKey"]?.GetValue<string>() ?? "";
+        NtfyInput.Text = c["ntfyUrl"]?.GetValue<string>() ?? "";
 
-        UpdateTranscriberFieldVisibility();
-        UpdateSummarizerFieldVisibility();
+        var sections = (c["noteSections"] as JsonArray)?.Select(n => n?.GetValue<string>() ?? "").ToHashSet()
+                       ?? new HashSet<string> { "kurzfassung", "besprochen", "todos" };
+        ChkKurzfassung.IsChecked = sections.Contains("kurzfassung");
+        ChkBesprochen.IsChecked = sections.Contains("besprochen");
+        ChkTodos.IsChecked = sections.Contains("todos");
+        ChkFollowup.IsChecked = sections.Contains("followup");
 
-        // Settings-Block standardmaessig eingeklappt, wie im Panel-Kontrakt gefordert
-        // (Panel bleibt kompakt; "Minimal"-Anspruch aus dem Auftrag).
+        var dest = c["destinations"] as JsonObject;
+        ChkNextcloud.IsChecked = dest?["nextcloud"]?.GetValue<bool>() ?? false;
+        ChkNotion.IsChecked = dest?["notion"]?.GetValue<bool>() ?? false;
+        NextcloudUrlInput.Text = c["nextcloudUrl"]?.GetValue<string>() ?? "";
+        NextcloudUserInput.Text = c["nextcloudUser"]?.GetValue<string>() ?? "";
+        NextcloudPassInput.Text = c["nextcloudAppPass"]?.GetValue<string>() ?? "";
+        NotionTokenInput.Text = c["notionToken"]?.GetValue<string>() ?? "";
+        NotionParentInput.Text = c["notionParent"]?.GetValue<string>() ?? "";
+
+        UpdateTransRows();
+        UpdateSumRows();
+        UpdateDestRows();
+
         SettingsBody.Visibility = Visibility.Collapsed;
-        SettingsToggle.Text = "▾";
+        SettingsChevron.Text = "";
     }
 
-    private static void SelectComboByTag(ComboBox combo, string tag)
+    private void SaveSettingsButton_Click(object sender, RoutedEventArgs e)
     {
-        foreach (ComboBoxItem item in combo.Items)
+        try
         {
-            if ((string)item.Tag == tag)
-            {
-                combo.SelectedItem = item;
-                return;
-            }
+            var c = TryReadJsonObject(Paths.ConfigFile) ?? new JsonObject();
+
+            c["notesDir"] = JsonValue.Create(_notesDir);
+            c["audioDir"] = JsonValue.Create(_audioDir);
+            c["mirrorDir"] = JsonValue.Create(_mirrorEnabled ? _mirrorDir : "");
+            c["uiLanguage"] = JsonValue.Create(GetSegment("lang"));
+            c["transcriber"] = JsonValue.Create(GetSegment("trans"));
+            c["summarizer"] = JsonValue.Create(GetSegment("sum"));
+            c["groqApiKey"] = JsonValue.Create(GroqKeyInput.Text ?? "");
+            c["summarizerUrl"] = JsonValue.Create(SummarizerUrlInput.Text ?? "");
+            c["summarizerModel"] = JsonValue.Create(SummarizerModelInput.Text ?? "");
+            c["summarizerApiKey"] = JsonValue.Create(SummarizerApiKeyInput.Text ?? "");
+            c["ntfyUrl"] = JsonValue.Create(NtfyInput.Text ?? "");
+
+            var sections = new JsonArray();
+            if (ChkKurzfassung.IsChecked == true) sections.Add(JsonValue.Create("kurzfassung"));
+            if (ChkBesprochen.IsChecked == true) sections.Add(JsonValue.Create("besprochen"));
+            if (ChkTodos.IsChecked == true) sections.Add(JsonValue.Create("todos"));
+            if (ChkFollowup.IsChecked == true) sections.Add(JsonValue.Create("followup"));
+            c["noteSections"] = sections;
+
+            var dest = c["destinations"] as JsonObject ?? new JsonObject();
+            dest["appleNotes"] = JsonValue.Create((c["destinations"] as JsonObject)?["appleNotes"]?.GetValue<bool>() ?? false);
+            dest["nextcloud"] = JsonValue.Create(ChkNextcloud.IsChecked == true);
+            dest["notion"] = JsonValue.Create(ChkNotion.IsChecked == true);
+            c["destinations"] = dest;
+            c["nextcloudUrl"] = JsonValue.Create(NextcloudUrlInput.Text ?? "");
+            c["nextcloudUser"] = JsonValue.Create(NextcloudUserInput.Text ?? "");
+            c["nextcloudAppPass"] = JsonValue.Create(NextcloudPassInput.Text ?? "");
+            c["notionToken"] = JsonValue.Create(NotionTokenInput.Text ?? "");
+            c["notionParent"] = JsonValue.Create(NotionParentInput.Text ?? "");
+
+            WriteJsonAtomic(Paths.ConfigFile, c);
+            L10n.Refresh();
+            ApplyLocalization();
+
+            string restart = TryRestartDaemon();
+            FlashHint(L("Gespeichert.", "Saved.") + (restart.Length > 0 ? " " + restart : ""));
         }
-        if (combo.Items.Count > 0) combo.SelectedIndex = 0;
+        catch (Exception ex)
+        {
+            System.Windows.MessageBox.Show(L($"Speichern fehlgeschlagen: {ex.Message}", $"Save failed: {ex.Message}"),
+                "CallNotes", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
     }
 
-    private void LanguageCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    /// <summary>
+    /// „Neustart“: laeuft ein eigenstaendiger calltap-watch-Daemon UND wird gerade nicht
+    /// aufgenommen, wird er mit der neuen Config neu gestartet. Waehrend einer Aufnahme
+    /// bewusst NICHT (wuerde den laufenden Anruf abschneiden).
+    /// </summary>
+    private string TryRestartDaemon()
     {
-        // Nur UI-Vorschau; wirksam wird es erst nach "Einstellungen speichern"
-        // (dann schreibt SaveSettingsButton_Click uiLanguage + ruft L10n.Refresh()).
+        if (File.Exists(Path.Combine(Paths.StateDir, "current-call.json")))
+            return L("Neustart nach Anrufende.", "Restart after call ends.");
+        try
+        {
+            var procs = Process.GetProcessesByName("calltap");
+            if (procs.Length == 0) return "";
+            string? exe = null;
+            try { exe = procs[0].MainModule?.FileName; } catch { }
+            foreach (var p in procs) { try { p.Kill(); p.WaitForExit(3000); } catch { } }
+            if (!string.IsNullOrEmpty(exe) && File.Exists(exe))
+            {
+                Process.Start(new ProcessStartInfo(exe, "watch") { UseShellExecute = true, WindowStyle = ProcessWindowStyle.Hidden });
+                return L("Daemon neu gestartet.", "Daemon restarted.");
+            }
+            return L("Daemon gestoppt (Pfad unbekannt).", "Daemon stopped (path unknown).");
+        }
+        catch { return ""; }
     }
 
-    private void TranscriberCombo_SelectionChanged(object sender, SelectionChangedEventArgs e) => UpdateTranscriberFieldVisibility();
+    // ---- Segmented-Control-Helfer ----
 
-    private void SummarizerCombo_SelectionChanged(object sender, SelectionChangedEventArgs e) => UpdateSummarizerFieldVisibility();
-
-    private void UpdateTranscriberFieldVisibility()
+    private RadioButton[] SegGroup(string group) => group switch
     {
-        bool isGroq = (TranscriberCombo.SelectedItem as ComboBoxItem)?.Tag as string == "groq";
-        GroqKeyLabel.Visibility = isGroq ? Visibility.Visible : Visibility.Collapsed;
-        GroqKeyInput.Visibility = isGroq ? Visibility.Visible : Visibility.Collapsed;
+        "lang" => new[] { LangSystem, LangDe, LangEn },
+        "trans" => new[] { TransLocal, TransGroq, TransParakeet },
+        "sum" => new[] { SumClaude, SumOpenAI, SumOff },
+        _ => System.Array.Empty<RadioButton>(),
+    };
+
+    private void SetSegment(string group, string tag)
+    {
+        var segs = SegGroup(group);
+        foreach (var s in segs) if ((string)s.Tag == tag) { s.IsChecked = true; return; }
+        if (segs.Length > 0) segs[0].IsChecked = true;
     }
 
-    private void UpdateSummarizerFieldVisibility()
+    private string GetSegment(string group)
     {
-        bool isOpenAi = (SummarizerCombo.SelectedItem as ComboBoxItem)?.Tag as string == "openai";
-        SummarizerUrlLabel.Visibility = isOpenAi ? Visibility.Visible : Visibility.Collapsed;
-        SummarizerUrlInput.Visibility = isOpenAi ? Visibility.Visible : Visibility.Collapsed;
-        SummarizerModelLabel.Visibility = isOpenAi ? Visibility.Visible : Visibility.Collapsed;
-        SummarizerModelInput.Visibility = isOpenAi ? Visibility.Visible : Visibility.Collapsed;
-        SummarizerApiKeyLabel.Visibility = isOpenAi ? Visibility.Visible : Visibility.Collapsed;
-        SummarizerApiKeyInput.Visibility = isOpenAi ? Visibility.Visible : Visibility.Collapsed;
+        foreach (var s in SegGroup(group)) if (s.IsChecked == true) return (string)s.Tag;
+        return (string)(SegGroup(group).FirstOrDefault()?.Tag ?? "");
     }
 
-    private void BrowseOutDirButton_Click(object sender, RoutedEventArgs e)
+    private void TransSegment_Changed(object sender, RoutedEventArgs e) { if (!_loading) UpdateTransRows(); }
+    private void SumSegment_Changed(object sender, RoutedEventArgs e) { if (!_loading) UpdateSumRows(); }
+    private void DestCheck_Changed(object sender, RoutedEventArgs e) { if (!_loading) UpdateDestRows(); }
+
+    private void UpdateTransRows()
     {
-        string? picked = PickFolder(OutDirInput.Text);
-        if (picked != null) OutDirInput.Text = picked;
+        bool groq = GetSegment("trans") == "groq";
+        GroqKeyRow.Visibility = groq ? Visibility.Visible : Visibility.Collapsed;
+        TransSpacer.Visibility = groq ? Visibility.Collapsed : Visibility.Visible;
     }
 
-    private void BrowseNotesDirButton_Click(object sender, RoutedEventArgs e)
+    private void UpdateSumRows()
     {
-        string? picked = PickFolder(NotesDirInput.Text);
-        if (picked != null) NotesDirInput.Text = picked;
+        bool openai = GetSegment("sum") == "openai";
+        OpenAiRow.Visibility = openai ? Visibility.Visible : Visibility.Collapsed;
+        SumSpacer.Visibility = openai ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    private void UpdateDestRows()
+    {
+        NextcloudRow.Visibility = ChkNextcloud.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+        NotionRow.Visibility = ChkNotion.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    // ---- Speicherorte / Kopie-Toggle ----
+
+    private void BrowseNotesButton_Click(object sender, RoutedEventArgs e)
+    { var p = PickFolder(_notesDir); if (p != null) { _notesDir = p; NotesDirValue.Text = p; } }
+
+    private void BrowseAudioButton_Click(object sender, RoutedEventArgs e)
+    { var p = PickFolder(_audioDir); if (p != null) { _audioDir = p; AudioDirValue.Text = p; } }
+
+    private void BrowseMirrorButton_Click(object sender, RoutedEventArgs e)
+    { var p = PickFolder(_mirrorDir); if (p != null) { _mirrorDir = p; _mirrorEnabled = true; UpdateMirrorUi(); } }
+
+    private void MirrorToggleButton_Click(object sender, RoutedEventArgs e)
+    { _mirrorEnabled = !_mirrorEnabled; UpdateMirrorUi(); }
+
+    private void UpdateMirrorUi()
+    {
+        MirrorToggleButton.Content = _mirrorEnabled ? L("an", "on") : L("aus", "off");
+        MirrorDirValue.Text = string.IsNullOrWhiteSpace(_mirrorDir) ? L("— nicht gesetzt", "— not set") : _mirrorDir;
+        MirrorDirValue.Foreground = _mirrorEnabled ? Brush("BrushTextPrimary") : Brush("BrushTextTertiary");
+    }
+
+    private void SyncNowButton_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var psi = new ProcessStartInfo { FileName = ResolveVenvPython(), UseShellExecute = false, CreateNoWindow = true };
+            psi.ArgumentList.Add(ResolvePipelineScript("callnotes_sync.py"));
+            psi.EnvironmentVariables["CALLNOTES_CONFIG"] = Paths.ConfigFile;
+            Process.Start(psi);
+            FlashHint(L("Sync gestartet.", "Sync started."));
+        }
+        catch (Exception ex)
+        {
+            System.Windows.MessageBox.Show(L($"Sync fehlgeschlagen: {ex.Message}", $"Sync failed: {ex.Message}"),
+                "CallNotes", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private void QuitButton_Click(object sender, RoutedEventArgs e)
+    {
+        System.Windows.Application.Current.Shutdown();
+    }
+
+    // ============================================================
+    // Hilfsfunktionen
+    // ============================================================
+
+    private SolidColorBrush Brush(string key) => (SolidColorBrush)FindResource(key);
+
+    private void FlashHint(string text)
+    {
+        SettingsSavedHint.Text = text;
+        SettingsSavedHint.Visibility = Visibility.Visible;
     }
 
     private static string? PickFolder(string initial)
     {
-        // OpenFolderDialog ist seit .NET 8 Teil von Microsoft.Win32 (WinForms-frei).
         var dialog = new OpenFolderDialog
         {
             InitialDirectory = Directory.Exists(initial) ? initial : Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
@@ -786,90 +852,24 @@ public partial class MainPanel : Window
         return dialog.ShowDialog() == true ? dialog.FolderName : null;
     }
 
-    /// <summary>
-    /// Schreibt config.json atomar (Temp-Datei + File.Replace), damit ein
-    /// gleichzeitig laufender Watch-Daemon nie eine halb geschriebene Datei liest —
-    /// gleiche Atomaritaets-Anforderung wie beim Mac-Original (WatchConfig.save()).
-    /// Bestehende, hier nicht editierte Keys bleiben unveraendert erhalten.
-    /// </summary>
-    private void SaveSettingsButton_Click(object sender, RoutedEventArgs e)
-    {
-        try
-        {
-            var config = TryReadJsonObject(Paths.ConfigFile) ?? new JsonObject();
-
-            config["outDir"] = JsonValue.Create(OutDirInput.Text?.Trim() ?? "");
-            config["notesDir"] = JsonValue.Create(NotesDirInput.Text?.Trim() ?? "");
-            config["uiLanguage"] = JsonValue.Create((string)((ComboBoxItem)LanguageCombo.SelectedItem).Tag);
-            config["transcriber"] = JsonValue.Create((string)((ComboBoxItem)TranscriberCombo.SelectedItem).Tag);
-            config["groqApiKey"] = JsonValue.Create(GroqKeyInput.Text ?? "");
-            config["summarizer"] = JsonValue.Create((string)((ComboBoxItem)SummarizerCombo.SelectedItem).Tag);
-            config["summarizerUrl"] = JsonValue.Create(SummarizerUrlInput.Text ?? "");
-            config["summarizerModel"] = JsonValue.Create(SummarizerModelInput.Text ?? "");
-            config["summarizerApiKey"] = JsonValue.Create(SummarizerApiKeyInput.Text ?? "");
-
-            WriteJsonAtomic(Paths.ConfigFile, config);
-
-            L10n.Refresh();
-            ApplyLocalization();
-
-            SettingsSavedHint.Text = L("Gespeichert.", "Saved.");
-            SettingsSavedHint.Visibility = Visibility.Visible;
-        }
-        catch (Exception ex)
-        {
-            System.Windows.MessageBox.Show(
-                L($"Speichern fehlgeschlagen: {ex.Message}", $"Save failed: {ex.Message}"),
-                "CallNotes", MessageBoxButton.OK, MessageBoxImage.Error);
-        }
-    }
-
-    // ---------------------------------------------------------------
-    // JSON-/Pfad-Hilfsfunktionen
-    // ---------------------------------------------------------------
-
     private static JsonObject? TryReadJsonObject(string path)
     {
-        try
-        {
-            if (!File.Exists(path)) return null;
-            string text = File.ReadAllText(path);
-            return JsonNode.Parse(text) as JsonObject;
-        }
-        catch
-        {
-            return null;
-        }
+        try { return File.Exists(path) ? JsonNode.Parse(File.ReadAllText(path)) as JsonObject : null; }
+        catch { return null; }
     }
 
     private static JsonArray? TryReadJsonArray(string path)
     {
-        try
-        {
-            if (!File.Exists(path)) return null;
-            string text = File.ReadAllText(path);
-            return JsonNode.Parse(text) as JsonArray;
-        }
-        catch
-        {
-            return null;
-        }
+        try { return File.Exists(path) ? JsonNode.Parse(File.ReadAllText(path)) as JsonArray : null; }
+        catch { return null; }
     }
 
-    /// <summary>
-    /// Atomares Schreiben: erst in eine Temp-Datei im selben Verzeichnis, dann
-    /// File.Move mit Overwrite (auf NTFS atomar innerhalb desselben Volumes) —
-    /// verhindert, dass ein gleichzeitig lesender Prozess (Watcher/Pipeline) eine
-    /// halb geschriebene Datei sieht.
-    /// </summary>
     private static void WriteJsonAtomic(string path, JsonNode node)
     {
         string? dir = Path.GetDirectoryName(path);
         if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
-
         string tempPath = path + ".tmp-" + Guid.NewGuid().ToString("N");
-        string json = node.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
-        File.WriteAllText(tempPath, json);
+        File.WriteAllText(tempPath, node.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
         File.Move(tempPath, path, overwrite: true);
     }
 
@@ -878,9 +878,6 @@ public partial class MainPanel : Window
         var config = TryReadJsonObject(Paths.ConfigFile);
         string? venvPython = config?["venvPython"]?.GetValue<string>();
         if (!string.IsNullOrWhiteSpace(venvPython) && File.Exists(venvPython)) return venvPython!;
-
-        // Fallback: venv unter %LOCALAPPDATA%\callnotes\venv\Scripts\python.exe
-        // (Default aus Contract 3.1), sonst schlicht "python" (PATH).
         string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
         string defaultVenv = Path.Combine(localAppData, "callnotes", "venv", "Scripts", "python.exe");
         return File.Exists(defaultVenv) ? defaultVenv : "python";
@@ -888,10 +885,6 @@ public partial class MainPanel : Window
 
     private static string ResolvePipelineScript(string fileName)
     {
-        // pipeline/ liegt relativ zur Installation neben dem Programmverzeichnis
-        // (siehe Contract-Baumstruktur: .../callnotes-windows/pipeline/*.py).
-        // Zur Laufzeit wird zuerst neben der EXE gesucht, dann eine Ebene darueber
-        // (Entwicklungsszenario: dotnet run aus src/CallNotesTray/bin/... heraus).
         string baseDir = AppDomain.CurrentDomain.BaseDirectory;
         string[] candidates =
         {
@@ -899,9 +892,7 @@ public partial class MainPanel : Window
             Path.Combine(baseDir, "..", "..", "..", "..", "..", "pipeline", fileName),
         };
         foreach (var candidate in candidates)
-        {
             if (File.Exists(candidate)) return Path.GetFullPath(candidate);
-        }
         return candidates[0];
     }
 }
