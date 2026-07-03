@@ -5,6 +5,10 @@
 <h1 align="center">CallNotes für Windows</h1>
 
 <p align="center">
+  <img src="assets/banner.de.png" alt="CallNotes für Windows — aus Anrufen werden Notizen. automatisch." width="820">
+</p>
+
+<p align="center">
   ⚠️ <b>Experimentell</b> — code-vollständiges Schwesterprojekt von
   <a href="https://github.com/michaelczesun/callnotes">CallNotes für macOS</a>;
   in CI auf Windows kompiliert, sucht Tester — bitte den ersten Testlauf als
@@ -72,6 +76,12 @@ sichtbaren Meeting-Bot oder ein Cloud-Abo. CallNotes nicht:
 - **KI deiner Wahl** für die Zusammenfassung: Claude Code (Standard), jede
   OpenAI-kompatible API (OpenAI, Groq, OpenRouter), komplett lokal via **Ollama**
   — oder ganz ohne.
+
+## So funktioniert es
+
+<p align="center">
+  <img src="assets/how-it-works.de.png" alt="So funktioniert CallNotes für Windows" width="640">
+</p>
 
 ## Was du nach dem Auflegen bekommst
 

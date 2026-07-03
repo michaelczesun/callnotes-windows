@@ -5,6 +5,10 @@
 <h1 align="center">CallNotes for Windows</h1>
 
 <p align="center">
+  <img src="assets/banner.png" alt="CallNotes for Windows — calls become notes. automatically." width="820">
+</p>
+
+<p align="center">
   ⚠️ <b>Experimental</b> — code-complete sibling of
   <a href="https://github.com/michaelczesun/callnotes">CallNotes for macOS</a>;
   CI-compiled on Windows, looking for testers — please report your first run in
@@ -68,6 +72,12 @@ bot, or a cloud subscription. CallNotes needs none of that:
 - **Bring your own AI** for summaries: Claude Code (default), any
   OpenAI-compatible API (OpenAI, Groq, OpenRouter), fully local via **Ollama** —
   or none at all.
+
+## How it works
+
+<p align="center">
+  <img src="assets/how-it-works.png" alt="How CallNotes for Windows works" width="640">
+</p>
 
 ## What you get after hanging up
 
