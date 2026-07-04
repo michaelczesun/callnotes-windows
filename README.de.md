@@ -213,6 +213,10 @@ dass dein Rechner/OS-Build das tatsächlich unterstützt.
 Danach: Testanruf machen (länger als 20 Sekunden). Fortschritt bei Bedarf in
 `%USERPROFILE%\CallNotes\log\process.log`.
 
+**Später aktualisieren:** `cd callnotes-windows && git pull`, dann
+`installer\install.ps1` erneut ausführen — Einstellungen und Notizen bleiben
+erhalten.
+
 ## Deinstallation
 
 ```powershell

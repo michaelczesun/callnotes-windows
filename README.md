@@ -202,6 +202,9 @@ process-loopback capture to confirm your machine/OS build actually supports it.
 Then make a test call (>20 s). Watch `%USERPROFILE%\CallNotes\log\process.log` if
 you're curious.
 
+**Updating later:** `cd callnotes-windows && git pull`, then re-run
+`installer\install.ps1` — settings and notes stay untouched.
+
 ## Uninstall
 
 ```powershell
