@@ -159,6 +159,15 @@ public partial class MainPanel : Window
 
         DaemonStatusDot.Fill = dot;
         HeaderSubtitle.Text = subtitle;
+
+        // Leerlauf: erklaeren, wann Aufnahme/Popup kommen (erster Mac-Tester
+        // erwartete das Popup schon beim Oeffnen von Teams)
+        IdleHintCard.Visibility = (!recording && !processing) ? Visibility.Visible : Visibility.Collapsed;
+        IdleHintText.Text = running
+            ? L("Bereit. Sobald in einer Call-App wirklich ein Anruf läuft (Mikrofon aktiv), startet die Aufnahme von selbst und ein Popup erscheint. Die App nur zu öffnen reicht nicht.",
+                "Ready. As soon as a call is actually running in a call app (microphone active), recording starts by itself and a popup appears. Just opening the app is not enough.")
+            : L("Der Aufnahme-Dienst läuft nicht. installer\\install.ps1 erneut ausführen oder den PC neu starten.",
+                "The recording service is not running. Re-run installer\\install.ps1 or restart your PC.");
         HeaderSubtitle.Foreground = recording ? Brush("BrushAccent") : (processing ? Brush("BrushPurple") : Brush("BrushPurple"));
     }
 

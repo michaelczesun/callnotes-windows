@@ -49,6 +49,18 @@
                     </StackPanel>
                 </Grid>
 
+                <!-- Leerlauf-Hinweis: erklaert Erstnutzern, WANN etwas passiert
+                     (Popup/Aufnahme erst im laufenden Anruf, nicht beim App-Start) -->
+                <Border x:Name="IdleHintCard" Style="{StaticResource Card}" Visibility="Collapsed">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="&#xE946;" FontFamily="Segoe MDL2 Assets" FontSize="14"
+                                   Foreground="{StaticResource BrushTextTertiary}"
+                                   VerticalAlignment="Top" Margin="0,2,8,0"/>
+                        <TextBlock x:Name="IdleHintText" TextWrapping="Wrap" FontSize="12"
+                                   Foreground="{StaticResource BrushTextSecondary}" MaxWidth="330"/>
+                    </StackPanel>
+                </Border>
+
                 <!-- ==================== Aktiver Anruf ==================== -->
                 <Border x:Name="ActiveCallCard" Style="{StaticResource Card}" Visibility="Collapsed">
                     <StackPanel>
