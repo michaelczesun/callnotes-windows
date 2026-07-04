@@ -213,6 +213,15 @@ dass dein Rechner/OS-Build das tatsächlich unterstützt.
 Danach: Testanruf machen (länger als 20 Sekunden). Fortschritt bei Bedarf in
 `%USERPROFILE%\CallNotes\log\process.log`.
 
+## Deinstallation
+
+```powershell
+installer\uninstall.ps1                 # stoppt Wächter + Tray, entfernt die geplanten Aufgaben
+installer\uninstall.ps1 -RemoveConfig -RemoveData -RemoveModels   # zusätzlich Config/Daten/Modelle
+```
+
+Dein Notizen-Ordner wird nie angetastet.
+
 ## Unterstützte Call-Apps
 
 WhatsApp (Desktop), Zoom, Microsoft Teams (neues, WebView2-basiertes), Discord —
@@ -285,27 +294,49 @@ python pipeline/process_call.py DIR       # eine Aufnahme (nach)verarbeiten
 
 ## FAQ
 
-**Ist das schon so ausgereift wie die Mac-Version?**
-Noch nicht — genau dafür steht das „Experimentell"-Label. Die macOS-App wird
-seit einer Weile täglich vom Autor genutzt; dieser Windows-Port ist
-code-vollständig und kompiliert/marshaled COM korrekt in CI, hat aber noch nicht
-dieselben echten Anruf-Stunden gesammelt. Wer es testet: bitte ein Issue mit
-Windows-Build-Nummer und dem Ergebnis des ersten Anrufs öffnen — das ist gerade
-das Wertvollste.
+<details>
+<summary><b>Ich habe Teams/WhatsApp geöffnet und nichts ist passiert?</b></summary>
+<br>
 
-**Warum C# statt eines reinen Code-Ports?**
+Das ist so gedacht: Popup und Aufnahme starten, wenn ein Anruf <b>wirklich
+läuft</b> (die App eine aktive Mikrofon-Session hat) — nicht schon beim Öffnen
+der App. Ruf jemanden an und beobachte das Tray-Symbol. Außerdem: CallNotes
+wohnt im <b>System-Tray</b> (unten rechts, evtl. hinter dem <code>^</code>-Pfeil)
+— ein Klick aufs Symbol öffnet das Panel, das zeigt, ob der Wächter läuft.
+</details>
+
+<details>
+<summary><b>Ist das schon so ausgereift wie die Mac-Version?</b></summary>
+<br>
+
+Noch nicht — genau dafür steht das „Experimentell"-Label. Die macOS-App wird
+seit einer Weile täglich vom Autor genutzt; dieser Windows-Port hat seinen
+ersten VM-Feldtest bestanden, aber noch nicht dieselben echten Anruf-Stunden
+gesammelt. Wer es testet: bitte ein Issue mit Windows-Build-Nummer und dem
+Ergebnis des ersten Anrufs öffnen — das ist gerade das Wertvollste.
+</details>
+
+<details>
+<summary><b>Warum C# statt eines reinen Code-Ports?</b></summary>
+<br>
+
 Der Aufnahme-Kern der Mac-App ist Swift + Core-Audio-Process-Taps, die es unter
 Windows schlicht nicht gibt. Das Windows-native Äquivalent (WASAPI Process
-Loopback) brauchte eine eigene Interop-Schicht (siehe `docs/contract.md` §1 und
-§7 für die vollständige technische Begründung inkl. Code). Alles, was *keine*
-plattformspezifische Aufnahme ist — die Python-Verarbeitungs-Pipeline — wird
-unverändert übernommen.
+Loopback) brauchte eine eigene Interop-Schicht (siehe <code>docs/contract.md</code>
+§1 und §7 für die vollständige technische Begründung inkl. Code). Alles, was
+<i>keine</i> plattformspezifische Aufnahme ist — die Python-Verarbeitungs-Pipeline
+— wird unverändert übernommen.
+</details>
 
-**Warum kein App Store / signiertes MSIX?**
+<details>
+<summary><b>Warum kein App Store / signiertes MSIX?</b></summary>
+<br>
+
 Ausgeliefert wird vorerst ein portables EXE + PowerShell-Installer, dieselbe
 „klonen und installieren"-Philosophie wie bei der Mac-App. MSIX-Sandboxing würde
 außerdem die rohe Process-Loopback-COM-Aktivierung erschweren, auf der dieses
 Projekt aufbaut.
+</details>
 
 ## Datenschutz & Recht
 

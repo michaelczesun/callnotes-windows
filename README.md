@@ -202,6 +202,15 @@ process-loopback capture to confirm your machine/OS build actually supports it.
 Then make a test call (>20 s). Watch `%USERPROFILE%\CallNotes\log\process.log` if
 you're curious.
 
+## Uninstall
+
+```powershell
+installer\uninstall.ps1                 # stops the daemon + tray, removes the scheduled tasks
+installer\uninstall.ps1 -RemoveConfig -RemoveData -RemoveModels   # also wipe config/data/models
+```
+
+Your notes folder is never touched.
+
 ## Supported call apps
 
 WhatsApp (Desktop), Zoom, Microsoft Teams (new/WebView2-based), Discord — anything
@@ -270,24 +279,48 @@ python pipeline/process_call.py DIR      # (re)process a recording
 
 ## FAQ
 
-**Is this as mature as the Mac version?**
-No, not yet — that's the point of the "experimental" label. The macOS app has
-been used daily by its author for a while; this Windows port is code-complete and
-compiles/marshals correctly in CI, but has not accumulated the same real-world
-call-hours. If you try it, please open an issue with your Windows build number
-and what happened on your first call — that's the most valuable thing right now.
+<details>
+<summary><b>I opened Teams/WhatsApp and nothing happened?</b></summary>
+<br>
 
-**Why C# instead of a straight code port?**
+That's expected: the popup and the recording start when a call is <b>actually
+running</b> (the app has an active microphone session) — not when you merely open
+the app. Call someone and watch the tray icon change. Also note: CallNotes lives
+in the <b>system tray</b> (bottom right, possibly behind the <code>^</code>
+arrow) — click the icon to open the panel, which shows whether the watcher is
+running.
+</details>
+
+<details>
+<summary><b>Is this as mature as the Mac version?</b></summary>
+<br>
+
+No, not yet — that's the point of the "experimental" label. The macOS app has
+been used daily by its author for a while; this Windows port passed its first
+VM field test, but has not accumulated the same real-world call-hours. If you
+try it, please open an issue with your Windows build number and what happened
+on your first call — that's the most valuable thing right now.
+</details>
+
+<details>
+<summary><b>Why C# instead of a straight code port?</b></summary>
+<br>
+
 The Mac app's capture core is Swift + Core Audio Process Taps, which simply don't
 exist on Windows. The Windows-native equivalent (WASAPI process loopback) needed
-its own interop layer (see `docs/contract.md` §1 and §7 for the full technical
-rationale and code). Everything that *isn't* platform-specific capture — the
-Python processing pipeline — is reused unchanged.
+its own interop layer (see <code>docs/contract.md</code> §1 and §7 for the full
+technical rationale and code). Everything that <i>isn't</i> platform-specific
+capture — the Python processing pipeline — is reused unchanged.
+</details>
 
-**Why no App Store / signed MSIX?**
+<details>
+<summary><b>Why no App Store / signed MSIX?</b></summary>
+<br>
+
 It ships as a portable EXE + PowerShell installer for now, same "clone and
 install" philosophy as the Mac app. MSIX sandboxing would also complicate the raw
 process-loopback COM activation this project depends on.
+</details>
 
 ## Privacy & legal
 
