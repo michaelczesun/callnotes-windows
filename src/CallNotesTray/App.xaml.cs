@@ -235,6 +235,7 @@ internal static class Paths
     }
 
     public static string StateDir => Path.Combine(DataRoot, "state");
+    public static string MicActiveFile => Path.Combine(StateDir, "mic-active.json");
     public static string PendingDir => Path.Combine(StateDir, "pending");
     public static string NotesDir => Path.Combine(DataRoot, "notes");
     public static string ReviewDir => Path.Combine(DataRoot, "review");
