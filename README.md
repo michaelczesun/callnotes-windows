@@ -108,6 +108,10 @@ Everything lives in the system tray (phone icon):
 - **Recent calls**, storage locations, API keys, integrations
 - **First-run setup wizard** and a settings UI with an ⓘ explainer next to every
   field, mirroring the Mac app's settings
+- **Live mic monitor** — the panel shows in real time which app is currently
+  using your microphone, even one that's *not* in your call list (e.g. a browser).
+  One click on **"Always record this app"** adds it, so browser calls get captured
+  from then on.
 - **English & German UI** — follows your system language automatically
   (`uiLanguage: "system" | "de" | "en"`)
 
@@ -281,6 +285,18 @@ python pipeline/process_call.py DIR      # (re)process a recording
   with `python pipeline/process_call.py <dir>`.
 
 ## FAQ
+
+<details>
+<summary><b>Does it work with browser calls (Google Meet, Teams web)?</b></summary>
+<br>
+
+Yes. Meet/Teams-web/Whereby run inside your browser, so out of the box they're
+not in the call list. When a browser call is active, the panel's <b>live mic
+monitor</b> shows it (“Chrome is using your microphone”) with an
+<b>Always record this app</b> button — one click and browser calls are captured
+from then on. Caveat: it then records the whole browser's audio, so mute other
+tabs during calls.
+</details>
 
 <details>
 <summary><b>I opened Teams/WhatsApp and nothing happened?</b></summary>

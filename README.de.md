@@ -114,6 +114,10 @@ Alles sitzt im System-Tray (Telefon-Symbol):
 - **Letzte Anrufe**, Speicherorte, API-Keys, Integrationen
 - **Ersteinrichtungs-Assistent** und eine Einstellungen-UI mit ⓘ neben jedem
   Feld, analog zur Mac-App
+- **Live-Mikro-Monitor** — das Panel zeigt in Echtzeit, welche App gerade dein
+  Mikrofon nutzt, auch eine, die *nicht* in deiner Anruf-Liste steht (z. B. ein
+  Browser). Ein Klick auf **„Diese App immer aufnehmen“** nimmt sie auf —
+  ab dann werden auch Browser-Calls mitgeschnitten.
 - **Deutsch & Englisch** — die App folgt automatisch deiner Systemsprache
   (`uiLanguage: "system" | "de" | "en"`)
 
@@ -297,6 +301,18 @@ python pipeline/process_call.py DIR       # eine Aufnahme (nach)verarbeiten
   `python pipeline/process_call.py <ordner>` erneut anstoßen.
 
 ## FAQ
+
+<details>
+<summary><b>Funktioniert das auch mit Browser-Calls (Google Meet, Teams-Web)?</b></summary>
+<br>
+
+Ja. Meet/Teams-Web/Whereby laufen im Browser, stehen also anfangs nicht in der
+Anruf-Liste. Sobald ein Browser-Call läuft, zeigt der <b>Live-Mikro-Monitor</b>
+im Panel das an („Chrome nutzt gerade dein Mikrofon“) samt Knopf
+<b>Diese App immer aufnehmen</b> — ein Klick, und Browser-Calls werden ab dann
+erfasst. Haken: Es wird dann der ganze Browser-Ton aufgenommen; andere Tabs
+während des Calls stummschalten.
+</details>
 
 <details>
 <summary><b>Ich habe Teams/WhatsApp geöffnet und nichts ist passiert?</b></summary>
