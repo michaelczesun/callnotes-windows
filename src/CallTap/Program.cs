@@ -278,6 +278,7 @@ namespace CallTap
             string failedDir = Path.Combine(dataRoot, "failed");
             string logDir = Path.Combine(dataRoot, "log");
             string currentCallFile = Path.Combine(stateDir, "current-call.json");
+            string micActiveFile = Path.Combine(stateDir, "mic-active.json");
 
             Directory.CreateDirectory(stateDir);
             Directory.CreateDirectory(pendingDir);
@@ -287,6 +288,7 @@ namespace CallTap
 
             // Regel 1: Startup-Cleanup — verwaiste current-call.json + rec/-Ordner ohne meta.json.
             TryDelete(currentCallFile);
+            TryDelete(micActiveFile);
             foreach (var dir in Directory.GetDirectories(recRoot))
             {
                 if (File.Exists(Path.Combine(dir, "meta.json"))) continue;
@@ -350,11 +352,17 @@ namespace CallTap
 
                     var sessions = AudioSessionProbe.GetActiveMicSessions();
                     (int Pid, string ExeName)? matched = null;
+                    (string Name, bool Listed)? micApp = null;
 
                     foreach (var s in sessions)
                     {
                         if (s.ProcessId == selfPid) continue;
-                        if (config.Matches(s.ProcessName))
+                        bool listed = config.Matches(s.ProcessName);
+                        // Erste mikro-aktive App fuer den Live-Monitor merken; eine
+                        // gelistete App hat Vorrang (die wird ja gleich aufgenommen).
+                        if (micApp == null || (listed && !micApp.Value.Listed))
+                            micApp = (s.ProcessName, listed);
+                        if (listed)
                         {
                             matched = (s.ProcessId, s.ProcessName);
                             break;
@@ -362,6 +370,10 @@ namespace CallTap
                         if (loggedUnknown.Add(s.ProcessName))
                             Log($"Info: Prozess '{s.ProcessName}' hat aktives Mikrofon, steht aber nicht in der apps-Liste.");
                     }
+
+                    // Live-Mikro-Monitor fuer die Tray-App: welche App nutzt gerade das
+                    // Mikrofon (auch nicht-gelistete, z.B. ein Browser mit Google Meet)?
+                    WriteMicActive(micActiveFile, micApp, recording: active != null);
 
                     // Regel 4: Suppress-Zustand nach Discard.
                     if (suppressExe != null)
@@ -612,6 +624,27 @@ namespace CallTap
 
         private static string NormalizeExe(string name) =>
             name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ? name[..^4] : name;
+
+        // Live-Mikro-Monitor: schreibt, WELCHE App gerade das Mikrofon nutzt (auch
+        // nicht-gelistete). Die Tray-App liest das und bietet "immer aufnehmen" an.
+        private static void WriteMicActive(string path, (string Name, bool Listed)? app, bool recording)
+        {
+            if (app == null) { TryDelete(path); return; }
+            string bare = NormalizeExe(app.Value.Name);
+            var payload = new
+            {
+                bundle = app.Value.Name,
+                @base = bare,
+                name = bare,
+                listed = app.Value.Listed,
+                recording,
+            };
+            try
+            {
+                File.WriteAllText(path, JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true }));
+            }
+            catch { }
+        }
 
         private static string StripExeSuffix(string name) => NormalizeExe(name);
 
