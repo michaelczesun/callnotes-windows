@@ -29,6 +29,8 @@ public partial class MainPanel : Window
     private readonly DispatcherTimer _waveTimer;
     private string? _activeCallDir;
     private DateTime? _activeCallStartUtc;
+    private string? _micAddName; // Prozessname der aktuell mikro-aktiven, nicht-gelisteten App
+    private bool _addingMicActiveApp; // waehrend "Diese App immer aufnehmen" speichert
     private string? _participantsBuiltForDir;
     private bool _settingsExpanded;
     private bool _loading;
@@ -138,10 +140,77 @@ public partial class MainPanel : Window
     private void RefreshAll()
     {
         RefreshHeaderStatus();
+        RefreshMicMonitor();
         RefreshActiveCall();
         RefreshPending();
         RefreshRecentNotes();
         RefreshFailed();
+    }
+
+    // Live-Mikro-Monitor: zeigt, welche App gerade das Mikrofon nutzt (auch nicht
+    // gelistete) — und bietet an, sie dauerhaft aufzunehmen (Browser-Calls!).
+    private void RefreshMicMonitor()
+    {
+        var m = TryReadJsonObject(Paths.MicActiveFile);
+        bool recording = File.Exists(Path.Combine(Paths.StateDir, "current-call.json"));
+        if (m == null || recording)
+        {
+            MicMonitorCard.Visibility = Visibility.Collapsed;
+            _micAddName = null;
+            return;
+        }
+        string name = m["name"]?.GetValue<string>() ?? m["bundle"]?.GetValue<string>() ?? "?";
+        bool listed = m["listed"]?.GetValue<bool>() ?? false;
+        _micAddName = m["base"]?.GetValue<string>() ?? m["bundle"]?.GetValue<string>();
+
+        MicMonitorCard.Visibility = Visibility.Visible;
+        IdleHintCard.Visibility = Visibility.Collapsed; // nicht doppelt erklaeren
+        MicMonitorText.Text = L($"„{name}“ nutzt gerade dein Mikrofon", $"“{name}” is using your microphone");
+        if (listed)
+        {
+            MicMonitorSub.Text = L("Aufnahme startet …", "Recording starting …");
+            MicMonitorButton.Visibility = Visibility.Collapsed;
+        }
+        else
+        {
+            MicMonitorSub.Text = L("Wird nicht aufgenommen — nicht in deiner Anruf-Liste.",
+                                   "Not being recorded — not in your call list.");
+            MicMonitorButton.Content = L("Diese App immer aufnehmen", "Always record this app");
+            MicMonitorButton.Visibility = string.IsNullOrWhiteSpace(_micAddName)
+                ? Visibility.Collapsed : Visibility.Visible;
+        }
+    }
+
+    private void MicMonitorButton_Click(object sender, RoutedEventArgs e)
+    {
+        string? name = _micAddName;
+        if (string.IsNullOrWhiteSpace(name) || _addingMicActiveApp) return;
+        _addingMicActiveApp = true;
+        MicMonitorButton.IsEnabled = false;
+        try
+        {
+            var c = TryReadJsonObject(Paths.ConfigFile) ?? new JsonObject();
+            var apps = c["apps"] as JsonArray;
+            if (apps == null) { apps = new JsonArray(); c["apps"] = apps; }
+            bool exists = apps.Any(n => string.Equals(n?.GetValue<string>(), name, StringComparison.OrdinalIgnoreCase));
+            if (!exists) apps.Add(JsonValue.Create(name));
+            WriteJsonAtomic(Paths.ConfigFile, c);
+            // Config-Aenderung sofort wirksam machen — auch fuer den gerade laufenden
+            // "Anruf" (Browser mit aktivem Mikrofon), analog zu alwaysRecord() im
+            // Mac-Original (dort per launchctl kickstart -k).
+            TryRestartDaemon();
+        }
+        catch (Exception ex)
+        {
+            System.Windows.MessageBox.Show(L($"Konnte App nicht hinzufügen: {ex.Message}", $"Could not add app: {ex.Message}"),
+                "CallNotes", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        finally
+        {
+            _addingMicActiveApp = false;
+            MicMonitorButton.IsEnabled = true;
+        }
+        RefreshAll();
     }
 
     private void RefreshHeaderStatus()

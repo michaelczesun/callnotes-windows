@@ -61,6 +61,28 @@
                     </StackPanel>
                 </Border>
 
+                <!-- Live-Mikro-Monitor: welche App nutzt gerade das Mikrofon? Macht auch
+                     nicht-gelistete Apps sichtbar (Google Meet/Teams-Web im Browser) und
+                     bietet per Klick an, sie dauerhaft aufzunehmen (Windows-Pendant zur
+                     Karte in der Mac-Menueleisten-App, SettingsApp.swift). -->
+                <Border x:Name="MicMonitorCard" Style="{StaticResource Card}" Visibility="Collapsed">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock x:Name="MicMonitorGlyph" Text="&#xE720;" FontFamily="Segoe MDL2 Assets" FontSize="15"
+                                   Foreground="{StaticResource BrushAccent}"
+                                   VerticalAlignment="Top" Margin="0,2,8,0"/>
+                        <StackPanel MaxWidth="330">
+                            <TextBlock x:Name="MicMonitorText" TextWrapping="Wrap" FontSize="13" FontWeight="SemiBold"
+                                       Foreground="{StaticResource BrushTextPrimary}"/>
+                            <TextBlock x:Name="MicMonitorSub" TextWrapping="Wrap" FontSize="12" Margin="0,4,0,0"
+                                       Foreground="{StaticResource BrushTextSecondary}"/>
+                            <Button x:Name="MicMonitorButton" Content="Diese App immer aufnehmen"
+                                    Style="{StaticResource PrimaryButton}" Margin="0,8,0,0"
+                                    HorizontalAlignment="Left" Visibility="Collapsed"
+                                    Click="MicMonitorButton_Click"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
                 <!-- ==================== Aktiver Anruf ==================== -->
                 <Border x:Name="ActiveCallCard" Style="{StaticResource Card}" Visibility="Collapsed">
                     <StackPanel>
