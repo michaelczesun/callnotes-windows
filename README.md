@@ -290,6 +290,7 @@ Experimental and **actively looking for testers** — your report is the most va
 
 - 🐛 **Bug or first-run report?** Open an [issue](https://github.com/michaelczesun/callnotes-windows/issues) with your **Windows build number** (`winver`) and what happened on your first call.
 - 💬 **Questions, ideas, or "it worked!"?** Head to [Discussions](https://github.com/michaelczesun/callnotes-windows/discussions) — the place to comment and compare notes.
+- 📋 **What changed each version?** See the [changelog](CHANGELOG.md) or the [Releases page](https://github.com/michaelczesun/callnotes-windows/releases).
 
 ## FAQ
 

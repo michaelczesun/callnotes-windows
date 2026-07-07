@@ -306,6 +306,7 @@ Experimentell und **aktiv auf Tester-Suche** — dein Bericht ist gerade das Wer
 
 - 🐛 **Bug oder Erst-Lauf-Bericht?** Ein [Issue](https://github.com/michaelczesun/callnotes-windows/issues) aufmachen, mit deiner **Windows-Build-Nummer** (`winver`) und dem, was beim ersten Anruf passiert ist.
 - 💬 **Fragen, Ideen oder „hat funktioniert"?** Ab in die [Discussions](https://github.com/michaelczesun/callnotes-windows/discussions) — zum Kommentieren und Erfahrungen austauschen.
+- 📋 **Was hat sich je Version geändert?** Siehe [Changelog](CHANGELOG.md) oder die [Releases-Seite](https://github.com/michaelczesun/callnotes-windows/releases).
 
 ## FAQ
 
