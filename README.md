@@ -284,6 +284,13 @@ python pipeline/process_call.py DIR      # (re)process a recording
 - Failed jobs land in `%USERPROFILE%\CallNotes\failed\` with raw audio; reprocess
   with `python pipeline/process_call.py <dir>`.
 
+## Feedback & questions
+
+Experimental and **actively looking for testers** — your report is the most valuable thing right now.
+
+- 🐛 **Bug or first-run report?** Open an [issue](https://github.com/michaelczesun/callnotes-windows/issues) with your **Windows build number** (`winver`) and what happened on your first call.
+- 💬 **Questions, ideas, or "it worked!"?** Head to [Discussions](https://github.com/michaelczesun/callnotes-windows/discussions) — the place to comment and compare notes.
+
 ## FAQ
 
 <details>

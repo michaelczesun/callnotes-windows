@@ -300,6 +300,13 @@ python pipeline/process_call.py DIR       # eine Aufnahme (nach)verarbeiten
   `%USERPROFILE%\CallNotes\failed\` und lassen sich mit
   `python pipeline/process_call.py <ordner>` erneut anstoßen.
 
+## Feedback & Fragen
+
+Experimentell und **aktiv auf Tester-Suche** — dein Bericht ist gerade das Wertvollste.
+
+- 🐛 **Bug oder Erst-Lauf-Bericht?** Ein [Issue](https://github.com/michaelczesun/callnotes-windows/issues) aufmachen, mit deiner **Windows-Build-Nummer** (`winver`) und dem, was beim ersten Anruf passiert ist.
+- 💬 **Fragen, Ideen oder „hat funktioniert"?** Ab in die [Discussions](https://github.com/michaelczesun/callnotes-windows/discussions) — zum Kommentieren und Erfahrungen austauschen.
+
 ## FAQ
 
 <details>
