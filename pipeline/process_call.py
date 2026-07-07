@@ -270,6 +270,12 @@ def fail(msg: str, base: Path, rec: Path, state: ProcessingState, cfg: Config) -
     state.done()
     failed_dir = base / "failed"
     failed_dir.mkdir(parents=True, exist_ok=True)
+    # Grund mit der Aufnahme mitwandern lassen, damit die Tray-App ihn zeigen kann
+    try:
+        if rec.is_dir():
+            (rec / "fail-reason.txt").write_text(msg + "\n", encoding="utf-8")
+    except OSError:
+        pass
     try:
         if failed_dir not in rec.parents and rec.is_dir():
             shutil.move(str(rec), str(failed_dir / rec.name))
