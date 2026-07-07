@@ -325,6 +325,7 @@ namespace CallTap
             DateTimeOffset? suppressIdleSince = null;
             DateTimeOffset? idleSince = null;
             DateTimeOffset? lastStartError = null;
+            string? lastStartErrorExe = null; // Backoff app-spezifisch halten
 
             RunningRecording? active = null;
             bool stopRequested = false;
@@ -401,14 +402,23 @@ namespace CallTap
                         // Regel 5: neue Aufnahme starten.
                         if (matched.HasValue)
                         {
-                            if (lastStartError.HasValue && (DateTimeOffset.UtcNow - lastStartError.Value).TotalSeconds < 60)
+                            // Backoff NUR fuer dieselbe App, die eben scheiterte — sonst
+                            // wuerde ein transienter Fehler bei App A einen echten Anruf
+                            // von App B bis zu 60s lang gar nicht starten.
+                            if (lastStartError.HasValue
+                                && string.Equals(NormalizeExe(matched.Value.ExeName), lastStartErrorExe, StringComparison.OrdinalIgnoreCase)
+                                && (DateTimeOffset.UtcNow - lastStartError.Value).TotalSeconds < 60)
                             {
                                 await Task.Delay(TimeSpan.FromSeconds(2));
                                 continue;
                             }
 
                             active = await TryStartRecording(matched.Value.Pid, matched.Value.ExeName, config, recRoot, currentCallFile);
-                            if (active == null) lastStartError = DateTimeOffset.UtcNow;
+                            if (active == null)
+                            {
+                                lastStartError = DateTimeOffset.UtcNow;
+                                lastStartErrorExe = NormalizeExe(matched.Value.ExeName);
+                            }
                         }
                     }
                     else
@@ -417,9 +427,11 @@ namespace CallTap
                         if ((DateTimeOffset.UtcNow - active.Started).TotalHours >= config.MaxHours)
                         {
                             Log($"REC STOP (Maximaldauer erreicht) {active.AppName} -> {active.Dir}");
-                            await FinishRecording(active, config, currentCallFile, failedDir: null, logDir);
-                            active = null;
-                            idleSince = null;
+                            // finally: active/idleSince IMMER zuruecksetzen — wirft
+                            // FinishRecording (z. B. Disk voll beim meta.json-Write),
+                            // haenge der Daemon sonst mit einer toten active in Endlos-Retry.
+                            try { await FinishRecording(active, config, currentCallFile, failedDir: null, logDir); }
+                            finally { active = null; idleSince = null; }
                         }
                         else
                         {
@@ -436,9 +448,8 @@ namespace CallTap
                                 if ((DateTimeOffset.UtcNow - idleSince.Value).TotalSeconds >= config.StopGraceSeconds)
                                 {
                                     Log($"REC STOP (Anruf beendet) {active.AppName} -> {active.Dir}");
-                                    await FinishRecording(active, config, currentCallFile, failedDir: null, logDir);
-                                    active = null;
-                                    idleSince = null;
+                                    try { await FinishRecording(active, config, currentCallFile, failedDir: null, logDir); }
+                                    finally { active = null; idleSince = null; }
                                 }
                             }
                         }
