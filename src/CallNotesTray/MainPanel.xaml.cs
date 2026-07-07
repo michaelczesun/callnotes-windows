@@ -640,8 +640,14 @@ public partial class MainPanel : Window
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-            var nameBlock = new TextBlock { Text = Path.GetFileName(dir), VerticalAlignment = VerticalAlignment.Center, FontSize = 12, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 0, 6, 0) };
-            Grid.SetColumn(nameBlock, 0);
+            // Fehlergrund (z. B. „Whisper-Modell fehlt") sichtbar machen, falls vorhanden
+            string reason = "";
+            try { var rf = Path.Combine(dir, "fail-reason.txt"); if (File.Exists(rf)) reason = File.ReadAllText(rf).Trim(); } catch { }
+            var namePanel = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 0) };
+            namePanel.Children.Add(new TextBlock { Text = Path.GetFileName(dir), FontSize = 12, TextTrimming = TextTrimming.CharacterEllipsis });
+            if (!string.IsNullOrEmpty(reason))
+                namePanel.Children.Add(new TextBlock { Text = reason, FontSize = 11, Foreground = Brush("BrushTextSecondary"), TextWrapping = TextWrapping.Wrap });
+            Grid.SetColumn(namePanel, 0);
             var retry = new Button { Content = L("Erneut", "Retry"), Style = (Style)FindResource("ChooseButton"), Margin = new Thickness(0, 0, 6, 0) };
             retry.Click += (_, _) => RetryFailed(dir);
             Grid.SetColumn(retry, 1);
@@ -649,7 +655,7 @@ public partial class MainPanel : Window
             discard.Click += (_, _) => DiscardFailed(dir);
             Grid.SetColumn(discard, 2);
 
-            row.Children.Add(nameBlock); row.Children.Add(retry); row.Children.Add(discard);
+            row.Children.Add(namePanel); row.Children.Add(retry); row.Children.Add(discard);
             FailedList.Children.Add(row);
         }
     }
