@@ -3,3 +3,4 @@ obj/
 __pycache__/
 *.wav
 *.user
+.DS_Store
