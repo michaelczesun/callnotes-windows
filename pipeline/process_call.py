@@ -690,7 +690,29 @@ def make_summary(
             return None
     else:
         text = summarize_claude(prompt, cfg.claude_bin, rec)
-        if text is None:
+        if text is None or not re.search(r"^#", text, re.MULTILINE):
+            # Claude fehlgeschlagen (haeufigster Fall: CLI-Login abgelaufen) — Grund
+            # nennen, auf die konfigurierte API zurueckfallen, und in jedem Fall warnen
+            # statt still eine Notiz ohne Zusammenfassung zu bauen.
+            why = "Claude-Zusammenfassung fehlgeschlagen"
+            try:
+                if re.search(
+                    r"authenticate|OAuth|session expired|not logged in|log in",
+                    (rec / "claude.log").read_text(encoding="utf-8"), re.I,
+                ):
+                    why = "Claude-Login abgelaufen — 'claude' neu einloggen"
+            except OSError:
+                pass
+            say(f"  {why}")
+            if cfg.sum_url and cfg.sum_model and cfg.sum_key:
+                say(f"  Fallback-Zusammenfassung via {cfg.sum_model} …")
+                fb = summarize_openai(prompt, cfg, rec)
+                if fb and re.search(r"^#", fb, re.MULTILINE):
+                    ntfy(f"{why} — Zusammenfassung per Fallback ({cfg.sum_model}) erstellt.",
+                         "CallNotes", cfg.ntfy_url)
+                    return fb
+                say("  Fallback-KI ebenfalls nicht erreichbar — Details in summarizer.log")
+            ntfy(f"{why} — Notiz ohne Zusammenfassung.", "CallNotes", cfg.ntfy_url)
             return None
 
     if not re.search(r"^#", text, re.MULTILINE):
