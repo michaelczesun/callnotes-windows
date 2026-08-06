@@ -7,6 +7,12 @@ version are on the [Releases page](https://github.com/michaelczesun/callnotes-wi
 This is the **experimental** Windows sibling of
 [CallNotes for macOS](https://github.com/michaelczesun/callnotes).
 
+## 0.3.2 — 2026-08-06
+### Fixed
+- **Summarizer fallback + alert** (parity with Mac): if the Claude CLI summarizer
+  fails (commonly an expired login), fall back to the configured API (e.g. Groq)
+  so a summary is still produced, and ntfy-alert either way.
+
 ## 0.3.1 — 2026-07-07
 ### Fixed
 - Failed recordings now show **why** in the tray (parity with the Mac).
