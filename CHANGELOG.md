@@ -7,6 +7,14 @@ version are on the [Releases page](https://github.com/michaelczesun/callnotes-wi
 This is the **experimental** Windows sibling of
 [CallNotes for macOS](https://github.com/michaelczesun/callnotes).
 
+## 0.3.3 — 2026-09-20
+### Fixed
+- **Speaker diarization no longer invents dozens of speakers** (parity with Mac
+  1.3.4). Echo/noise/artifacts on the tapped caller track could split into many tiny
+  bogus clusters (97 on one real call). Speakers are now weighted by total talk time;
+  only real participants (>=4 s and >=3 % of speech) count, the rest fold into the
+  nearest real speaker, and <=1 significant speaker collapses to a single peer.
+
 ## 0.3.2 — 2026-08-06
 ### Fixed
 - **Summarizer fallback + alert** (parity with Mac): if the Claude CLI summarizer
