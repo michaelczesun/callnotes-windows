@@ -141,7 +141,10 @@ class Config:
         self.context = d.get("context") or ""
         self.moc_on = bool(d.get("notesMoc", True))
         self.diarize_on = bool(d.get("diarize", True))
-        self.dia_threshold = float(d.get("diarizeThreshold") or 0.4)
+        # 0.6 war bis 0.3.x der Default der alten pyannote-Erkennung (andere Bedeutung)
+        # -> wie "nicht gesetzt" behandeln; eigene Werte bleiben erhalten.
+        thr = d.get("diarizeThreshold")
+        self.dia_threshold = 0.4 if (not thr or thr == 0.6) else float(thr)
         self.venv_python = expand(
             d.get("venvPython"), r"%LOCALAPPDATA%\callnotes\venv\Scripts\python.exe"
         )

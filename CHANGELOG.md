@@ -7,6 +7,12 @@ version are on the [Releases page](https://github.com/michaelczesun/callnotes-wi
 This is the **experimental** Windows sibling of
 [CallNotes for macOS](https://github.com/michaelczesun/callnotes).
 
+## 0.4.1 — 2026-10-11
+### Fixed
+- Configs created from the old example carried `"diarizeThreshold": 0.6`, the default
+  of the previous speaker detection, which overrode the new `0.4`. `0.6` is now treated
+  like "not set"; other values are kept (parity with Mac 1.5.1).
+
 ## 0.4.0 — 2026-10-11
 Parity with Mac 1.5.0: a reliability and resource overhaul. The numbers below were
 measured on real call recordings (11-138 min) with the Mac reference implementation;
