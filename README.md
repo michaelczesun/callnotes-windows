@@ -240,7 +240,7 @@ with `apps` holding **executable names** instead of bundle IDs. Highlights:
 | `noteSections` | which sections get written: summary, discussed, todos, follow-up email |
 | `destinations` | extra delivery: Nextcloud (WebDAV), Notion (no Apple Notes on Windows) |
 | `notesDir` / `audioDir` / `mirrorDir` | where notes, audio and the external-drive mirror go |
-| `diarize` / `diarizeThreshold` | multi-speaker detection on/off, clustering threshold |
+| `diarize` / `diarizeThreshold` | multi-speaker detection on/off; similarity threshold, default `0.4` (higher = more speakers) |
 | `speakerSelf` / `speakerPeer` / `context` | your name / peer label in transcripts + one line of context for better summaries |
 | `micDeviceId` | *(Windows-only)* override the NAudio capture endpoint; empty = default mic |
 | `processLoopbackMode` | *(Windows-only)* `includeTree` (default) or `excludeTree` — maps directly to `PROCESS_LOOPBACK_MODE` |

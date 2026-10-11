@@ -301,21 +301,19 @@ if (-not (Test-Path $VenvPython)) {
     Write-Host "  venv bereits vorhanden: $Venv"
 }
 
-$SegModelPath = Join-Path $DiaModels "sherpa-onnx-pyannote-segmentation-3-0\model.onnx"
-if ((Test-Path $SegModelPath) -and -not $SkipModels) {
-    Write-Host "  Segmentierungs-Modell bereits vorhanden."
+# Sprachpausen-Erkennung (silero VAD, ~0,6 MB): Parakeet dekodiert damit stueckweise
+# (sonst Speicher voll bei langen Calls), die Sprecher-Erkennung nutzt dieselben Abschnitte.
+# Ersetzt das pyannote-Segmentierungs-Modell (Mac 1.5.0 / Windows 0.4.0).
+$VadModelPath = Join-Path $DiaModels "silero_vad.onnx"
+if ((Test-Path $VadModelPath) -and -not $SkipModels) {
+    Write-Host "  Sprachpausen-Modell (silero VAD) bereits vorhanden."
 } elseif (-not $SkipModels) {
-    Write-Host "  Lade Segmentierungs-Modell (~9 MB)..."
-    $segArchive = Join-Path $DiaModels "seg.tar.bz2"
-    $ok = Invoke-DownloadWithRetry -Url "https://github.com/k2-fsa/sherpa-onnx/releases/download/speaker-segmentation-models/sherpa-onnx-pyannote-segmentation-3-0.tar.bz2" -OutFile $segArchive -Retries 4
-    if ($ok) {
-        $extracted = Expand-TarBz2 -ArchivePath $segArchive -DestDir $DiaModels
-        Remove-Item $segArchive -Force -ErrorAction SilentlyContinue
-        if (-not $extracted) {
-            Write-Host "  WARNUNG: Segmentierungs-Modell konnte nicht entpackt werden." -ForegroundColor DarkYellow
-        }
-    } else {
-        Write-Host "  WARNUNG: Segmentierungs-Modell-Download fehlgeschlagen." -ForegroundColor DarkYellow
+    Write-Host "  Lade Sprachpausen-Modell (silero VAD, ~0,6 MB)..."
+    $ok = Invoke-DownloadWithRetry -Url "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/silero_vad.onnx" -OutFile $VadModelPath -Retries 5
+    if (-not $ok) {
+        # Halb geladene Datei entfernen: die Pipeline erkennt das Modell an der Existenz der Datei.
+        Remove-Item $VadModelPath -Force -ErrorAction SilentlyContinue
+        Write-Host "  WARNUNG: VAD-Download fehlgeschlagen (Fallback: Energie-Schaetzung)." -ForegroundColor DarkYellow
     }
 } else {
     Write-Host "  uebersprungen (-SkipModels)"

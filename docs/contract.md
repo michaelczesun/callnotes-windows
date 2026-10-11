@@ -296,7 +296,7 @@ identical unless noted. New Windows-only keys are marked **(new)**.
   "whisperModel": "%USERPROFILE%\\models\\ggml-large-v3-turbo-q5_0.bin",
   "language": "de",
   "diarize": true,
-  "diarizeThreshold": 0.6,
+  "diarizeThreshold": 0.4,
 
   "transcriber": "local",
   "groqApiKey": "",
@@ -1265,7 +1265,7 @@ complexity not worth v1's time):
   only** (WhatsApp, Zoom, Teams, Discord); Phone Link / Your Phone Companion call
   audio routing is a possible future `apps` entry but is not researched or
   supported in v1.
-- **Diarization threshold UI.** `diarizeThreshold` (default 0.6) remains a
+- **Diarization threshold UI.** `diarizeThreshold` (default 0.4, a speaker-similarity threshold; higher = more speakers) remains a
   config-file-only knob, edited by hand or via a future settings field — v1's
   `SettingsView` does not expose a slider/control for it, matching the Mac
   app's current state (it's also config-only there, no UI control in

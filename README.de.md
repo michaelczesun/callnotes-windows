@@ -254,7 +254,7 @@ wichtigsten Felder:
 | `noteSections` | welche Abschnitte geschrieben werden: Kurzfassung, Besprochen, To-dos, Follow-up-Mail |
 | `destinations` | zusätzliche Ablage: Nextcloud (WebDAV), Notion (kein Apple Notes unter Windows) |
 | `notesDir` / `audioDir` / `mirrorDir` | wohin Notizen, Audio und der Externe-Platte-Spiegel gehen |
-| `diarize` / `diarizeThreshold` | Mehrsprecher-Erkennung an/aus, Cluster-Schwelle |
+| `diarize` / `diarizeThreshold` | Mehrsprecher-Erkennung an/aus; Ähnlichkeits-Schwelle, Standard `0.4` (höher = mehr Sprecher) |
 | `speakerSelf` / `speakerPeer` / `context` | dein Name / Label der Gegenseite im Transkript + ein Satz Kontext für bessere Zusammenfassungen |
 | `micDeviceId` | *(nur Windows)* NAudio-Aufnahmegerät überschreiben; leer = Standardmikrofon |
 | `processLoopbackMode` | *(nur Windows)* `includeTree` (Default) oder `excludeTree` — direkt auf `PROCESS_LOOPBACK_MODE` gemappt |
