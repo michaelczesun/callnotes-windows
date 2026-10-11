@@ -53,6 +53,16 @@ have to do it manually (or PowerShell is broken — see below), you need:
 - **ARM64 detection lies in emulated shells:** `PROCESSOR_ARCHITECTURE` says
   `AMD64` inside x64-emulated bash/cmd. Check the OS, not the shell. Native
   ARM64 builds of calltap work (verified, PE machine 0xAA64).
+- NEVER feed a whole call into one Parakeet stream: encoder memory explodes with
+  length (macOS kills it with `Killed: 9` after 10-25 min on 8 GB Macs; on
+  Windows expect a `MemoryError` / "bad allocation" or a machine swapping to the
+  pagefile). `pipeline/transcribe_parakeet.py` decodes VAD chunks <= 20 s
+  (`pipeline/callnotes_audio.py`, `silero_vad.onnx` in `%LOCALAPPDATA%\callnotes\models`);
+  test any change on a 30+ min recording, not a short clip.
+- `pipeline/diarize.py` clusters one speaker embedding per VAD segment (threshold
+  0.40, higher = more speakers). Calibration check: the caller's own mic track
+  must always come out as exactly 1 speaker. The heavy children (Parakeet,
+  diarization, whisper-cli) run at `BELOW_NORMAL_PRIORITY_CLASS`.
 - CI (`.github/workflows/build.yml`, windows-latest) is the compile gate;
   the first runtime field test was 2026-07-03 in a Win11 ARM64 VM: build ✓,
   `procs` ✓, `setup` ✓, loopback recording with real audio ✓.

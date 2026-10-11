@@ -7,6 +7,37 @@ version are on the [Releases page](https://github.com/michaelczesun/callnotes-wi
 This is the **experimental** Windows sibling of
 [CallNotes for macOS](https://github.com/michaelczesun/callnotes).
 
+## 0.4.0 — 2026-10-11
+Parity with Mac 1.5.0: a reliability and resource overhaul. The numbers below were
+measured on real call recordings (11-138 min) with the Mac reference implementation;
+the Windows pipeline runs the same code.
+### Fixed
+- **Parakeet no longer runs out of memory on long calls.** The whole recording was
+  fed into the model at once, so memory grew with call length. Parakeet now decodes
+  speech in chunks of up to 20 s found by a voice-activity detector (silero VAD) and
+  skips silence. A 33-min call takes ~4 min end to end instead of ~52, at ~1 GB peak
+  memory, on 2 CPU threads (`CALLNOTES_THREADS`).
+- **Speaker detection no longer invents speakers.** New engine: one voice
+  fingerprint per speech segment, grouped by similarity. 1:1 calls that reported 3-6
+  speakers now report 1; a real 5-person team call reports 5. It runs in 8 s to
+  2.5 min instead of 5-27 min. `diarizeThreshold` is now a similarity threshold
+  (default `0.4`, higher = more speakers; calibrated range 0.30-0.45). If your
+  `config.json` still has the old default `0.6`, set it to `0.4`.
+- An honest log message when Parakeet fails (out of memory / model missing / other,
+  with the exit code and a pointer to `parakeet.log`) instead of one generic line.
+  A successful run now logs its stats line (chunks, speech minutes, real-time factor).
+### Changed
+- Parakeet, speaker detection and whisper.cpp run at **below-normal priority**, so
+  the PC stays responsive while a call is processed.
+- `install.ps1` downloads the 0.6 MB silero VAD model; the pyannote segmentation
+  model is no longer needed. Re-run `installer\install.ps1` once on an existing
+  setup (without the VAD model the pipeline falls back to an energy estimate).
+### Measured, not added
+- Noise filters (FFT, NLM, loudness normalisation) made recognition **worse** on
+  real call noise (8-12 % word errors vs 2-7 % without), so there is none. What
+  read like "noise" in notes was Whisper inventing sentences in silence; Parakeet
+  does not (0 vs 753 repetition loops on the same 33-min track).
+
 ## 0.3.3 — 2026-09-20
 ### Fixed
 - **Speaker diarization no longer invents dozens of speakers** (parity with Mac

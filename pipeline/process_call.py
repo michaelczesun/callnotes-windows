@@ -25,6 +25,8 @@
 #   - Pfade ausschliesslich ueber pathlib + os.path.expandvars (%USERPROFILE% etc.),
 #     kein os.path.expanduser("~") noetig (Config liefert vollstaendige Windows-Pfade).
 #   - Claude-CLI-Timeout ueber subprocess + Thread-Watchdog statt bash "kill -9".
+#   - Rechenintensive Kindprozesse (Parakeet, Diarisierung, whisper-cli) laufen mit
+#     BELOW_NORMAL_PRIORITY_CLASS statt "taskpolicy -c utility" (Mac 1.5.0).
 from __future__ import annotations
 
 import ctypes
@@ -90,13 +92,26 @@ def ntfy(msg: str, title: str, ntfy_url: str) -> None:
         pass  # ntfy ist best-effort, darf die Verarbeitung nie stoppen
 
 
-def run(cmd: list[str], **kw) -> subprocess.CompletedProcess:
-    """subprocess.run mit versteckter Konsole (Windows) + sinnvollen Defaults."""
-    creationflags = 0
+# Niedrige Prioritaet fuer die schweren Kindprozesse (Parakeet, Diarisierung, whisper-cli),
+# damit der PC waehrend der Verarbeitung bedienbar bleibt (Mac 1.5.0: taskpolicy -c utility).
+# getattr: die Konstante gibt es nur unter Windows; anderswo 0 = kein Effekt, Import klappt.
+BELOW_NORMAL = getattr(subprocess, "BELOW_NORMAL_PRIORITY_CLASS", 0)
+
+
+def child_flags(low_priority: bool = False) -> int:
+    """creationflags fuer Kindprozesse: versteckte Konsole (Windows) + optional niedrige Prioritaet."""
+    flags = 0
     if os.name == "nt":
-        creationflags = subprocess.CREATE_NO_WINDOW
+        flags |= subprocess.CREATE_NO_WINDOW
+        if low_priority:
+            flags |= BELOW_NORMAL
+    return flags
+
+
+def run(cmd: list[str], *, low_priority: bool = False, **kw) -> subprocess.CompletedProcess:
+    """subprocess.run mit versteckter Konsole (Windows) + sinnvollen Defaults."""
     kw.setdefault("capture_output", True)
-    return subprocess.run(cmd, creationflags=creationflags, **kw)
+    return subprocess.run(cmd, creationflags=child_flags(low_priority), **kw)
 
 
 def which(name: str) -> str | None:
@@ -126,7 +141,7 @@ class Config:
         self.context = d.get("context") or ""
         self.moc_on = bool(d.get("notesMoc", True))
         self.diarize_on = bool(d.get("diarize", True))
-        self.dia_threshold = float(d.get("diarizeThreshold") or 0.6)
+        self.dia_threshold = float(d.get("diarizeThreshold") or 0.4)
         self.venv_python = expand(
             d.get("venvPython"), r"%LOCALAPPDATA%\callnotes\venv\Scripts\python.exe"
         )
@@ -366,14 +381,15 @@ def transcribe_track(
         except Exception as e:
             parakeet_ok = False
             (rec / "parakeet.log").open("a", encoding="utf-8").write(f"{e}\n")
+            say("  Parakeet fehlgeschlagen (Ausnahme, Details parakeet.log) — Fallback whisper")
         if not parakeet_ok:
-            say("  Parakeet fehlgeschlagen — lokal (whisper.cpp)")
+            json_out.unlink(missing_ok=True)  # Teil-JSON nie als Ergebnis stehen lassen
 
     if not (json_out.is_file() and json_out.stat().st_size > 0):
         run([
             whisper_cli_bin(), "-m", cfg.model, "-l", cfg.language, "-np",
             "-oj", "-of", str(rec / out_label), "-f", str(wav),
-        ])
+        ], low_priority=True)
 
     if not keep_wav:
         wav.unlink(missing_ok=True)
@@ -424,28 +440,64 @@ def _groq_transcribe(wav: Path, out_json: Path, groq_key: str, language: str, re
         return False
 
 
+# Hinweise im Log, dass dem Prozess der Speicher ausging. Unter Windows gibt es keinen
+# OOM-Killer wie "Killed: 9" auf dem Mac: der Speicher-Mangel zeigt sich als Python-
+# MemoryError, ONNX-Runtime-/C++-"bad allocation" oder als NTSTATUS-Exit-Code.
+_MEMORY_LOG_HINTS = ("memoryerror", "bad_alloc", "bad allocation", "failed to allocate",
+                     "out of memory", "not enough memory", "not enough space")
+_MEMORY_EXIT_CODES = (
+    137, -9,        # SIGKILL (Mac-Wert; nur ueber Wrapper/WSL relevant)
+    0xC0000017,     # STATUS_NO_MEMORY
+    0xC000012D,     # STATUS_COMMITMENT_LIMIT ("system is low on virtual memory")
+)
+
+
 def _parakeet_transcribe(wav: Path, out_json: Path, venv_python: str, rec: Path) -> bool:
     """Parakeet TDT v3 via pipeline/transcribe_parakeet.py im venv-Python (sherpa-onnx,
-    gleiche Runtime wie die Diarisierung). Rueckgabe True = Erfolg (JSON vorhanden)."""
+    gleiche Runtime wie die Diarisierung). Rueckgabe True = Erfolg (JSON vorhanden).
+    Meldet selbst den ehrlichen Grund im Verarbeitungs-Log (Mac 1.5.0: process-call.sh)."""
     venv_py = Path(venv_python)
     if not venv_py.is_file():
         with open(rec / "parakeet.log", "a", encoding="utf-8") as f:
             f.write(f"venv-Python fehlt: {venv_py}\n")
+        say("  Parakeet fehlgeschlagen (venv-Python fehlt, Details parakeet.log) — Fallback whisper")
         return False
 
     script = SCRIPT_DIR / "transcribe_parakeet.py"
     r = subprocess.run(
         [str(venv_py), str(script), str(wav), str(out_json)],
-        capture_output=True, text=True,
-        creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+        capture_output=True, text=True, errors="replace",
+        creationflags=child_flags(low_priority=True),
     )
-    if r.stderr:
+    stderr = r.stderr or ""
+    if stderr:
         with open(rec / "parakeet.log", "a", encoding="utf-8") as f:
-            f.write(r.stderr)
+            f.write(stderr if stderr.endswith("\n") else stderr + "\n")
+
     if r.returncode != 0:
+        out_json.unlink(missing_ok=True)  # Teil-Ergebnis nie stehen lassen
+        # Ehrlicher Grund statt pauschal "Modell fehlt" (Reihenfolge wie Mac: erst Speicher
+        # per Exit-Code, dann fehlendes Modell, dann Speicher-Hinweise im Log, sonst generisch).
+        if r.returncode in _MEMORY_EXIT_CODES:
+            say("  Parakeet vom System abgebrochen (Speicher voll) — Fallback whisper")
+        elif "Parakeet-Modell" in stderr:
+            say("  Parakeet-Modell fehlt (installer\\install.ps1 -WithParakeet) — Fallback whisper")
+        elif any(h in stderr.lower() for h in _MEMORY_LOG_HINTS):
+            say("  Parakeet vom System abgebrochen (Speicher voll) — Fallback whisper")
+        else:
+            say(f"  Parakeet fehlgeschlagen (Code {r.returncode}, Details parakeet.log) — Fallback whisper")
         return False
 
-    return out_json.is_file() and out_json.stat().st_size > 0
+    if not (out_json.is_file() and out_json.stat().st_size > 0):
+        out_json.unlink(missing_ok=True)
+        say("  Parakeet fehlgeschlagen (kein Ergebnis, Details parakeet.log) — Fallback whisper")
+        return False
+
+    # Erfolg: letzte Zeile des Laufs (Statistik-Zeile von transcribe_parakeet.py) ins Log
+    last = next((ln.strip() for ln in reversed(stderr.splitlines()) if ln.strip()), "")
+    if last:
+        say(f"  Parakeet: {last}")
+    return True
 
 
 # ============================================================================
@@ -461,7 +513,7 @@ def run_diarization(rec: Path, cfg: Config, texts: Texts, state: ProcessingState
 
     if cfg.diarize_on and sys_wav.is_file() and sys_wav.stat().st_size > 0 and venv_py.is_file():
         state.phase(texts.ph_dia)
-        say("Diarisierung (sherpa-onnx) …")
+        say("Sprecher-Erkennung (Stimm-Fingerabdruck je Abschnitt) …")
         diarize_script = SCRIPT_DIR / "diarize.py"
         try:
             with open(dia_json, "w", encoding="utf-8") as out_f, \
@@ -469,7 +521,7 @@ def run_diarization(rec: Path, cfg: Config, texts: Texts, state: ProcessingState
                 r = subprocess.run(
                     [str(venv_py), str(diarize_script), str(sys_wav), str(cfg.dia_threshold)],
                     stdout=out_f, stderr=log_f,
-                    creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+                    creationflags=child_flags(low_priority=True),
                 )
             if r.returncode != 0:
                 dia_json.unlink(missing_ok=True)
